@@ -110,7 +110,7 @@ export function WalkView({
             )}
           </p>
         </div>
-        {compassPrompt ? (
+        {compassPrompt && !arrived ? (
           <button
             type="button"
             onClick={onEnableCompass}

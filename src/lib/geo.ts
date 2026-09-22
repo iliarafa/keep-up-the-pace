@@ -82,10 +82,13 @@ export function speedFromTrack(
   if (!Number.isFinite(dt) || dt < 0.4 || dt > 20) return null;
   const dist = haversineM(prev, next);
   if (!Number.isFinite(dist)) return null;
-  const noise = Math.max(prev.accuracyM ?? 12, next.accuracyM ?? 12, 8);
-  if (dist < Math.min(noise * 0.55, 14)) return 0;
   const speed = dist / dt;
   if (speed > 8) return null;
+  if (dist < 0.8 || speed < 0.2) return 0;
+  const noise = Math.max(prev.accuracyM ?? 12, next.accuracyM ?? 12, 8);
+  // A fast jump that never leaves the accuracy bubble is GPS noise, not a sprint.
+  // Walking pace stays under this cutoff, so a 1 Hz step is not zeroed.
+  if (dist < Math.min(noise * 0.45, 12) && speed > 4.5) return 0;
   return speed;
 }
 

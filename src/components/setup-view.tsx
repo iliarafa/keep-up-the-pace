@@ -288,14 +288,14 @@ function GpsLine({
   if (status === "denied") {
     return (
       <button type="button" onClick={onEnable} className="min-h-11 w-full text-center text-xs leading-5 text-late">
-        Location is blocked. Tap to try again, or preview a walk.
+        Location is blocked. Tap to try again.
       </button>
     );
   }
   if (status === "unavailable") {
     return (
       <button type="button" onClick={onEnable} className="min-h-11 w-full text-center text-xs leading-5 text-late">
-        {error ? `${error} Tap to retry, or preview a walk.` : "GPS unavailable. Tap to retry, or preview a walk."}
+        {error ? `${error} Tap to retry.` : "GPS unavailable. Tap to retry."}
       </button>
     );
   }

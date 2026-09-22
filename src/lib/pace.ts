@@ -49,7 +49,10 @@ export function interpretGeoError(
 }
 
 export function fixIsFresh(timestamp: number, now: number, maxAgeMs = 20_000) {
-  return Number.isFinite(timestamp) && now - timestamp >= 0 && now - timestamp <= maxAgeMs;
+  if (!Number.isFinite(timestamp) || !Number.isFinite(now)) return false;
+  const age = now - timestamp;
+  // A fix can be newer than the 1s HUD clock. Don't call that stale.
+  return age <= maxAgeMs && age >= -5_000;
 }
 
 export function remainingM(fix: LatLon, dest: LatLon) {

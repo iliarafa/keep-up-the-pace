@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { formatDelta, formatHeading, formatSpeed } from "./format.ts";
+import { cn } from "./utils.ts";
 import {
   bearingDeg,
   destinationPoint,
@@ -82,11 +83,17 @@ describe("speed", () => {
     assert.ok(Math.abs(speed - 4) < 0.15);
   });
 
-  it("drops jitter inside the accuracy bubble and rejects spikes", () => {
-    const jitter = destinationPoint(origin, 45, 3);
+  it("drops fast jitter inside the accuracy bubble and rejects spikes", () => {
+    const jitter = destinationPoint(origin, 45, 6);
     assert.equal(speedFromTrack(origin, { ...jitter, timestamp: 1000, accuracyM: 20 }), 0);
     const spike = destinationPoint(origin, 90, 40);
     assert.equal(speedFromTrack(origin, { ...spike, timestamp: 1000, accuracyM: 5 }), null);
+  });
+
+  it("keeps a walking step that is smaller than the accuracy bubble", () => {
+    const step = destinationPoint(origin, 0, 1.5);
+    const speed = speedFromTrack(origin, { ...step, timestamp: 1000, accuracyM: 12 });
+    assert.ok(speed != null && Math.abs(speed - 1.5) < 0.2);
   });
 
   it("trusts a moving track when the platform speed is stuck at zero", () => {
@@ -129,12 +136,23 @@ describe("gps errors and route scale", () => {
     assert.equal(interpretGeoError("denied", true), "denied");
     assert.equal(fixIsFresh(1_000, 1_000 + 20_000), true);
     assert.equal(fixIsFresh(1_000, 1_000 + 20_001), false);
+    assert.equal(fixIsFresh(10_000, 9_000), true);
+    assert.equal(fixIsFresh(10_000, 4_000), false);
   });
 
   it("scales street distance onto the live crow-flies fix", () => {
     assert.equal(routeScale(1400, 1000), 1.4);
     assert.equal(routeScale(100, 10), null);
     assert.equal(routeScale(9000, 1000), null);
+  });
+});
+
+describe("delta type", () => {
+  it("keeps the hero size class next to the early/late color", () => {
+    const merged = cn("font-mono text-delta leading-none", "text-early");
+    assert.match(merged, /\btext-delta\b/);
+    assert.match(merged, /\btext-early\b/);
+    assert.match(cn("text-metric", "text-fg"), /\btext-metric\b/);
   });
 });
 
