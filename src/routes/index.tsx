@@ -8,13 +8,19 @@ export const Route = createFileRoute("/")({ component: Home });
 function Home() {
   const app = usePaceApp();
 
-  if ((app.phase === "walk" || app.phase === "arrived") && app.session && app.metrics) {
+  if ((app.phase === "walk" || app.phase === "arrived") && app.session) {
     return (
       <WalkView
         session={app.session}
         metrics={app.metrics}
         units={app.units}
         phase={app.phase === "arrived" ? "arrived" : "walk"}
+        gpsStatus={app.geo.status}
+        deviceHeading={app.compassHeading}
+        compassPrompt={app.compassPrompt}
+        onEnableCompass={() => {
+          void app.requestCompass();
+        }}
         onEnd={app.endSession}
       />
     );

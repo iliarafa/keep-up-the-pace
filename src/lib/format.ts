@@ -6,14 +6,12 @@ export function detectUnits(): Units {
   return loc.startsWith("en-US") ? "imperial" : "metric";
 }
 
-export function formatSpeed(mps: number, units: Units): { value: string; unit: string } {
-  if (!Number.isFinite(mps) || mps < 0.15) {
-    return { value: "0.0", unit: units === "imperial" ? "mph" : "km/h" };
-  }
-  if (units === "imperial") {
-    return { value: (mps * 2.236936).toFixed(1), unit: "mph" };
-  }
-  return { value: (mps * 3.6).toFixed(1), unit: "km/h" };
+export function formatSpeed(mps: number | null, units: Units): { value: string; unit: string } {
+  const unit = units === "imperial" ? "mph" : "km/h";
+  if (mps == null || !Number.isFinite(mps)) return { value: "—", unit };
+  if (mps < 0.15) return { value: "0.0", unit };
+  if (units === "imperial") return { value: (mps * 2.236936).toFixed(1), unit };
+  return { value: (mps * 3.6).toFixed(1), unit };
 }
 
 export function formatDistance(meters: number, units: Units): string {

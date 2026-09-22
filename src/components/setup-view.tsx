@@ -279,17 +279,28 @@ function GpsLine({
     return <p className="text-center text-xs text-early">GPS ready</p>;
   }
   if (status === "requesting") {
-    return <p className="text-center text-xs text-muted">Waiting for GPS…</p>;
-  }
-  if (status === "denied" || status === "unavailable") {
     return (
-      <button type="button" onClick={onEnable} className="w-full text-center text-xs text-muted">
-        {error ? `${error} Tap to retry, or preview a walk.` : "Location is off. Tap to retry, or preview a walk."}
+      <p className="flex min-h-11 items-center justify-center text-center text-xs text-muted">
+        Waiting for GPS…
+      </p>
+    );
+  }
+  if (status === "denied") {
+    return (
+      <button type="button" onClick={onEnable} className="min-h-11 w-full text-center text-xs leading-5 text-late">
+        Location is blocked. Tap to try again, or preview a walk.
+      </button>
+    );
+  }
+  if (status === "unavailable") {
+    return (
+      <button type="button" onClick={onEnable} className="min-h-11 w-full text-center text-xs leading-5 text-late">
+        {error ? `${error} Tap to retry, or preview a walk.` : "GPS unavailable. Tap to retry, or preview a walk."}
       </button>
     );
   }
   return (
-    <button type="button" onClick={onEnable} className="w-full text-center text-xs text-muted">
+    <button type="button" onClick={onEnable} className="min-h-11 w-full text-center text-xs text-muted">
       Enable location to start a live walk
     </button>
   );
