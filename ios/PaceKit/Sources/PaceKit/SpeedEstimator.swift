@@ -1,18 +1,26 @@
 import Foundation
 
 /// Turns raw location readings into fixes with a smoothed speed. Ported from `toFix` in
-/// `src/hooks/use-geolocation.ts`, with two changes: inaccurate readings are dropped, and the
-/// fallback speed uses haversine distance (the web version scales the whole distance by
-/// cos(latitude), which under-counts north–south movement).
+/// `src/hooks/use-geolocation.ts`, with three changes: inaccurate readings are dropped, stale
+/// readings are dropped (the web gets that from `maximumAge: 1000`), and the fallback speed uses
+/// haversine distance (the web version scales the whole distance by cos(latitude), which
+/// under-counts north–south movement).
 public struct SpeedEstimator: Sendable {
     public static let maxAccuracyM = 50.0
+    /// Readings older than this when they arrive are cached positions, not live ones.
+    public static let maxAgeSec: TimeInterval = 1
     public private(set) var last: GPSFix?
 
     public init() {}
 
-    /// Returns nil (and keeps no state) for readings with invalid or worse-than-50 m accuracy.
-    public mutating func accept(coordinate: LatLon, reportedSpeedMps: Double?, accuracyM: Double?, timestamp: Date) -> GPSFix? {
+    /// Returns nil (and keeps no state) for readings with invalid or worse-than-50 m accuracy, and
+    /// for readings more than `maxAgeSec` old when they arrived — so a cached position never
+    /// becomes a walk's start point.
+    public mutating func accept(
+        coordinate: LatLon, reportedSpeedMps: Double?, accuracyM: Double?, timestamp: Date, receivedAt: Date
+    ) -> GPSFix? {
         if let accuracyM, accuracyM < 0 || accuracyM > Self.maxAccuracyM { return nil }
+        if receivedAt.timeIntervalSince(timestamp) > Self.maxAgeSec { return nil }
         var speed = reportedSpeedMps.flatMap { $0 >= 0 ? $0 : nil }
         if speed == nil, let last {
             let dt = timestamp.timeIntervalSince(last.timestamp)
