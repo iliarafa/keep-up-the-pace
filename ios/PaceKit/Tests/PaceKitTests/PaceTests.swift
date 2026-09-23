@@ -32,4 +32,11 @@ import Testing
         #expect(Pace.hasArrived(straightLineM: 18))
         #expect(!Pace.hasArrived(straightLineM: 18.01))
     }
+
+    @Test func nanRemainingDistanceGivesNaNLikeTheWeb() {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let delta = Pace.scheduleDeltaSec(
+            startDistanceM: 1000, remainingM: .nan, startAt: start, arriveBy: start + 600, now: start + 60)
+        #expect(delta.isNaN)
+    }
 }

@@ -25,6 +25,7 @@ import Testing
         var m = PaceStatusMachine()
         #expect(m.update(deltaSec: 30) == .ahead)
         #expect(m.update(deltaSec: 26) == nil)
+        #expect(m.update(deltaSec: 25) == nil)   // exactly +(30 - 5) still counts as ahead
         #expect(m.update(deltaSec: 24.9) == .onTime)
     }
 

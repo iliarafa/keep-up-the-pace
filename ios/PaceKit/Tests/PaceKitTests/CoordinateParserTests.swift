@@ -8,6 +8,7 @@ import Testing
         #expect(place?.area == "Coordinates")
         #expect(place?.coordinate == LatLon(lat: 40.7, lon: -73.9))
         #expect(CoordinateParser.parse("40.7 -73.9")?.coordinate == LatLon(lat: 40.7, lon: -73.9))
+        #expect(CoordinateParser.parse("-0.0, 5.0")?.name == "0.00000, 5.00000")
     }
 
     @Test func rejectsOutOfRangeAndNonCoordinates() {

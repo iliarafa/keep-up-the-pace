@@ -25,6 +25,7 @@ struct GoldenFixture: Decodable, Sendable {
     struct Duration: Decodable, Sendable { let ms: Double; let out: String }
     struct Delta: Decodable, Sendable { let sec: Double; let sign: String; let clock: String; let label: String; let tone: String }
     struct Heading: Decodable, Sendable { let deg: Double; let out: String }
+    struct ToFixed: Decodable, Sendable { let x: Double; let out: String }
 
     let haversine: [Haversine]
     let bearing: [Bearing]
@@ -39,6 +40,7 @@ struct GoldenFixture: Decodable, Sendable {
     let duration: [Duration]
     let delta: [Delta]
     let heading: [Heading]
+    let toFixed5: [ToFixed]
 
     static let shared: GoldenFixture = {
         let url = Bundle.module.url(forResource: "golden", withExtension: "json", subdirectory: "Fixtures")!

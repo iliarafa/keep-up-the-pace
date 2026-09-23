@@ -11,8 +11,10 @@ enum JSNumber {
 
     /// `Number.prototype.toFixed`. Ties go to the larger magnitude, judged on
     /// the exact binary value — unlike `String(format:)`, which rounds ties to even.
+    /// Exact while x · 10^digits stays below 2^53 — far beyond any value the app formats.
     static func toFixed(_ x: Double, _ digits: Int) -> String {
         if x < 0 { return "-" + toFixed(-x, digits) }
+        let x = x == 0 ? 0 : x  // JavaScript prints -0 as "0"
         let p = pow(10.0, Double(digits))
         let s = x * p
         let err = (-s).addingProduct(x, p)  // exact rounding error of x * p

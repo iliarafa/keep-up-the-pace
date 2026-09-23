@@ -88,6 +88,9 @@ const golden = {
     deg,
     out: fmt.formatHeading(deg),
   })),
+  toFixed5: [0.000005, 0.000015, 1.000005, 12.345675, 40.7, -73.9, 90, -90, 180, -180, ...times(60, () => between(-180, 180))].map(
+    (x) => ({ x, out: x.toFixed(5) }),
+  ),
 };
 
 console.log(JSON.stringify(golden, null, 2));

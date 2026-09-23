@@ -38,6 +38,7 @@ public enum Pace {
         if requiredMps <= 0 { return 0 }
         let elapsed = max(0, now.timeIntervalSince(startAt))
         let expectedCovered = requiredMps * elapsed
+        if remainingM.isNaN { return .nan }  // as on the web: NaN in, NaN out ("on time", no alert)
         let actualCovered = max(0, startDistanceM - remainingM)
         return (actualCovered - expectedCovered) / requiredMps
     }
