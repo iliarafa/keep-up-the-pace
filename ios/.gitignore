@@ -7,3 +7,6 @@ KeepThePace.xcodeproj/
 build/
 PaceKit/.build/
 PaceKit/.swiftpm/
+
+# macOS
+.DS_Store

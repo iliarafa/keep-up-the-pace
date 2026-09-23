@@ -1,0 +1,2 @@
+# The native app has its own tooling; golden.json must stay byte-identical to make-golden.mjs output.
+ios/

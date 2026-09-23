@@ -11,8 +11,11 @@ generate:
 test:
 	cd PaceKit && swift test
 
+# Writes to a temp file first so a failed run can't truncate the committed fixture.
 golden:
-	cd .. && node --experimental-strip-types --no-warnings ios/PaceKit/Scripts/make-golden.mjs > ios/PaceKit/Tests/PaceKitTests/Fixtures/golden.json
+	mkdir -p build
+	cd .. && node --experimental-strip-types --no-warnings ios/PaceKit/Scripts/make-golden.mjs > ios/build/golden.json.tmp
+	mv build/golden.json.tmp PaceKit/Tests/PaceKitTests/Fixtures/golden.json
 
 build-ios: generate
 	$(XCODEBUILD) -scheme KeepThePace -destination 'platform=iOS Simulator,name=$(SIM_IPHONE)' build

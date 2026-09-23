@@ -55,11 +55,12 @@ TanStack Start + React 19 + Tailwind v4. There is one route (`src/routes/index.t
 
 ## iOS / watchOS app (`ios/`)
 
-The native iPhone and Apple Watch app is being built in `ios/`. The design is in `docs/superpowers/specs/2026-09-22-ios-watch-app-design.md`. The web app in `src/` is the **reference implementation** for the pace math and formatting; it is not shipped.
+The native iPhone and Apple Watch app is being built in `ios/`. The design is in `docs/superpowers/specs/2026-09-22-ios-watch-app-design.md`. The web app in `src/` is the **reference implementation** for the pace math and formatting; it is not part of the iOS build.
 
 - **The project is generated.** `ios/project.yml` (XcodeGen) is the source of truth. `KeepThePace.xcodeproj`, the `Info.plist` files and the `.entitlements` files are generated and gitignored. Change targets, capabilities, Info keys and build settings in `project.yml`, never in Xcode's settings panes; those edits are lost at the next generate.
 - **Targets:** `KeepThePace` (iOS app), `PaceActivity` (Live Activity extension), `KeepThePaceWatch` (watchOS app, embedded in the iOS app) and `PaceComplication` (watch widget extension). All four depend on the local package `ios/PaceKit`.
 - **Bundle IDs:** the prefix is `com.iliasrafailidis.delta`, the App Group is `group.com.iliasrafailidis.delta` and the team is `3DLV25C9VK`. The bundle ID cannot change once registered; the display name can.
+- **Versions:** set `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` in `project.yml`; all four targets read them, so the extensions and the watch app always match the phone app.
 - **PaceKit** is pure Swift with no UI or Core Location, so all app logic that can be tested lives there. Its formatters use `JSNumber` (`Math.round` and `toFixed` semantics) so the output matches the web app character for character. Don't replace these with `String(format:)`: it rounds ties differently.
 - **Golden vectors:** `ios/PaceKit/Scripts/make-golden.mjs` runs the web TypeScript (`src/lib/geo.ts`, `src/lib/format.ts`) and writes `Tests/PaceKitTests/Fixtures/golden.json`. The Swift tests must match it. Regenerate only if the web reference changes intentionally.
 
@@ -73,4 +74,4 @@ make build-ios     # generate + build the iOS app (with embedded watch app) for 
 make build-watch   # generate + build the watch app for the simulator
 ```
 
-To run a single test: `cd ios/PaceKit && swift test --filter FormatTests` (a suite) or `--filter FormatTests/deltaMatchesWeb` (one test). Simulator builds pass `CODE_SIGNING_ALLOWED=NO`. On-device runs use Xcode with automatic signing.
+To run a single test: `cd ios/PaceKit && swift test --filter FormatTests` (a suite) or `--filter FormatTests/deltaMatchesWeb` (one test). Simulator builds pass `CODE_SIGNING_ALLOWED=NO`. On-device runs use Xcode with automatic signing. Makefile simulator builds carry no entitlements, so check App Group or HealthKit behaviour in a build run from Xcode.
