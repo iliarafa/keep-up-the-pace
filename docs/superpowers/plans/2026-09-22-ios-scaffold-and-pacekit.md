@@ -117,7 +117,7 @@ import Testing
 - [ ] **Step 3: Run it and confirm it fails**
 
 Run: `cd ios/PaceKit && swift test`
-Expected: a build failure containing `cannot find 'LatLon' in scope`.
+Expected: SwiftPM fails with `error: 'pacekit': target 'PaceKit' referenced in product 'PaceKit' is empty` (there is no source file yet — that is the RED state).
 
 - [ ] **Step 4: Implement `LatLon`**
 
@@ -513,7 +513,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
     - `bearingDeg(from:to:) -> Double`
     - `destinationPoint(from:bearingDeg:distanceM:) -> LatLon`
     - `moveTowards(from:to:distanceM:) -> LatLon`
-    - `cardinal(_:) -> String`
+    - `cardinal(_:) -> String` (non-finite input returns "N", like the web)
     - `walkEstimateSec(distanceM:paceMps:) -> TimeInterval`
     - `roundUpToMinute(_: Date) -> Date`
   - Test helpers: `GoldenFixture.shared`, `close(_:_:_:)` and `date(ms:)`.
@@ -744,6 +744,11 @@ import Testing
         }
     }
 
+    @Test func cardinalOfNonFiniteIsNorth() {
+        #expect(Geo.cardinal(.nan) == "N")
+        #expect(Geo.cardinal(.infinity) == "N")
+    }
+
     @Test func walkEstimateMatchesWeb() {
         for c in golden.walkEstimateMs {
             #expect(close(Geo.walkEstimateSec(distanceM: c.dist, paceMps: c.pace) * 1000, c.out), "\(c)")
@@ -841,6 +846,7 @@ public enum Geo {
     }
 
     public static func cardinal(_ deg: Double) -> String {
+        guard deg.isFinite else { return "N" }  // the web's `dirs[NaN] ?? "N"`
         let dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
         let index = Int(JSNumber.round(deg / 45)) % 8
         return index >= 0 ? dirs[index] : "N"
@@ -1182,9 +1188,9 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
     - `speed(mps:units:) -> SpeedText`
     - `distance(meters:units:) -> String`
     - `clock(_:locale:timeZone:) -> String`
-    - `duration(seconds:) -> String`
+    - `duration(seconds:) -> String` (non-finite input returns "—")
     - `delta(sec:) -> DeltaText`
-    - `heading(_:) -> String`
+    - `heading(_:) -> String` (non-finite input returns "—")
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1233,6 +1239,8 @@ import Testing
         #expect(Format.speed(mps: .nan, units: .metric) == SpeedText(value: "0.0", unit: "km/h"))
         #expect(Format.distance(meters: .infinity, units: .imperial) == "—")
         #expect(Format.delta(sec: .nan).label == "on time")
+        #expect(Format.heading(.nan) == "—")
+        #expect(Format.duration(seconds: .infinity) == "—")
     }
 
     @Test func clockUsesLocaleAndTimeZone() {
@@ -1328,6 +1336,7 @@ public enum Format {
     }
 
     public static func duration(seconds: TimeInterval) -> String {
+        guard seconds.isFinite else { return "—" }
         let totalMin = max(0, Int(JSNumber.round(seconds / 60)))
         if totalMin < 60 { return "\(totalMin) min" }
         let h = totalMin / 60
@@ -1350,6 +1359,7 @@ public enum Format {
     }
 
     public static func heading(_ deg: Double) -> String {
+        guard deg.isFinite else { return "—" }
         let n = ((Int(JSNumber.round(deg)) % 360) + 360) % 360
         return String(format: "%03d°", n)
     }
@@ -1698,7 +1708,7 @@ Expected: 2 tests pass.
 - [ ] **Step 5: Full verification (M1 exit criteria)**
 
 Run: `cd ios && make test && make build-ios && make build-watch`
-Expected: `Test run with 41 tests in 9 suites passed`, and both builds exit 0 with no `warning:` or `error:` lines from PaceKit.
+Expected: `Test run with 42 tests in 9 suites passed`, and both builds exit 0 with no `warning:` or `error:` lines from PaceKit.
 
 Also check that the golden fixture is up to date: `cd ios && make golden && git diff --exit-code PaceKit/Tests/PaceKitTests/Fixtures/golden.json`. Expected exit code 0.
 
