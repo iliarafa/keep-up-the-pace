@@ -48,3 +48,22 @@ public enum Pace {
         straightLineM <= arriveRadiusM
     }
 }
+
+extension Session {
+    /// A walk always starts with at least this far to go…
+    public static let minStartDistanceM = 30.0
+    /// …and at least this long to do it in.
+    public static let minLeadTimeSec: TimeInterval = 60
+
+    /// Starts a walk with the web's start rules (`beginSession` in `use-pace-app.ts`): the start
+    /// distance is the planned distance (straight-line if there is no plan) but at least 30 m, and
+    /// arrive-by is at least a minute away.
+    public static func begin(
+        dest: Place, from start: LatLon, plannedDistanceM: Double?, arriveBy: Date, now: Date, demo: Bool, routed: Bool
+    ) -> Session {
+        let distance = plannedDistanceM ?? Geo.haversineM(start, dest.coordinate)
+        return Session(
+            dest: dest, start: start, startDistanceM: max(distance, minStartDistanceM), startAt: now,
+            arriveBy: max(arriveBy, now + minLeadTimeSec), demo: demo, routed: routed)
+    }
+}
