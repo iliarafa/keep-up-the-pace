@@ -29,7 +29,7 @@ import Testing
     }
 
     @Test func arrivalRadiusIsInclusive() {
-        #expect(Pace.hasArrived(remainingM: 18))
-        #expect(!Pace.hasArrived(remainingM: 18.01))
+        #expect(Pace.hasArrived(straightLineM: 18))
+        #expect(!Pace.hasArrived(straightLineM: 18.01))
     }
 }

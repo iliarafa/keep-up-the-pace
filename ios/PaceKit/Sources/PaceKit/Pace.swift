@@ -1,17 +1,5 @@
 import Foundation
 
-public struct Place: Codable, Hashable, Sendable {
-    public var name: String
-    public var area: String
-    public var coordinate: LatLon
-
-    public init(name: String, area: String, coordinate: LatLon) {
-        self.name = name
-        self.area = area
-        self.coordinate = coordinate
-    }
-}
-
 /// One walk, fixed at start. Ported from `Session` in `src/lib/pace.ts`.
 public struct Session: Codable, Hashable, Sendable {
     public var dest: Place
@@ -54,7 +42,8 @@ public enum Pace {
         return (actualCovered - expectedCovered) / requiredMps
     }
 
-    public static func hasArrived(remainingM: Double) -> Bool {
-        remainingM <= arriveRadiusM
+    /// Arrival is judged on straight-line distance only — never on the routed remaining distance.
+    public static func hasArrived(straightLineM: Double) -> Bool {
+        straightLineM <= arriveRadiusM
     }
 }

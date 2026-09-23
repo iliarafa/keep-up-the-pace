@@ -1,3 +1,6 @@
+/// The alert bucket relative to the user's alert threshold (15, 30 or 60 s). It only drives
+/// alerts (Watch haptics, Live Activity alert updates); the on-screen readout's colour and
+/// label come from `Format.delta(sec:)`'s `DeltaTone`.
 public enum PaceStatus: String, Codable, Sendable {
     case ahead, onTime, behind
 }

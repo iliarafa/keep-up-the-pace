@@ -19,17 +19,17 @@ public enum DemoWalk {
         now + Geo.walkEstimateSec(distanceM: Geo.haversineM(start, dest), paceMps: plannedPaceMps)
     }
 
-    public static func firstFix(start: LatLon, now: Date) -> GpsFix {
-        GpsFix(coordinate: start, speedMps: 1.72, accuracyM: 5, timestamp: now)
+    public static func firstFix(start: LatLon, now: Date) -> GPSFix {
+        GPSFix(coordinate: start, speedMps: 1.72, accuracyM: 5, timestamp: now)
     }
 
     /// Advances one tick: 1.72 ± 0.18 m/s, snapping to the destination once within the arrival radius.
-    public static func step(from prev: GpsFix, toward dest: LatLon, now: Date) -> GpsFix {
-        if Geo.haversineM(prev.coordinate, dest) <= Pace.arriveRadiusM {
-            return GpsFix(coordinate: dest, speedMps: 0, accuracyM: prev.accuracyM, timestamp: now)
+    public static func step(from prev: GPSFix, toward dest: LatLon, now: Date) -> GPSFix {
+        if Pace.hasArrived(straightLineM: Geo.haversineM(prev.coordinate, dest)) {
+            return GPSFix(coordinate: dest, speedMps: 0, accuracyM: prev.accuracyM, timestamp: now)
         }
         let speed = 1.72 + sin(now.timeIntervalSince1970 / 3.2) * 0.18
         let next = Geo.moveTowards(from: prev.coordinate, to: dest, distanceM: speed * tickInterval)
-        return GpsFix(coordinate: next, speedMps: speed, accuracyM: 5, timestamp: now)
+        return GPSFix(coordinate: next, speedMps: speed, accuracyM: 5, timestamp: now)
     }
 }

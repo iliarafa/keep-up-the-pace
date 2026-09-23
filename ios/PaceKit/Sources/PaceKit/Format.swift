@@ -5,6 +5,8 @@ public struct SpeedText: Equatable, Sendable {
     public let unit: String
 }
 
+/// Colour and label of the ±m:ss readout: within 3 s of schedule reads "on time", as on the web.
+/// Alerts use `PaceStatus` instead, whose band is the user's alert threshold.
 public enum DeltaTone: String, Codable, Sendable {
     case early, late, ontime
 }

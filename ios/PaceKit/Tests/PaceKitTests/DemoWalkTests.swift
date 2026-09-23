@@ -28,7 +28,7 @@ import Testing
     }
 
     @Test func snapsToDestinationInsideArrivalRadius() {
-        let close = GpsFix(
+        let close = GPSFix(
             coordinate: Geo.destinationPoint(from: dest, bearingDeg: 90, distanceM: 10),
             speedMps: 1.7, accuracyM: 5, timestamp: now)
         let next = DemoWalk.step(from: close, toward: dest, now: now + 0.25)
