@@ -40,6 +40,8 @@ import Testing
 
     @Test func noSpeedWithoutHistory() {
         var e = SpeedEstimator()
-        #expect(e.accept(coordinate: here, reportedSpeedMps: nil, accuracyM: nil, timestamp: t0)?.speedMps == nil)
+        let fix = e.accept(coordinate: here, reportedSpeedMps: nil, accuracyM: nil, timestamp: t0)
+        #expect(fix != nil)   // unknown accuracy is accepted; only worse than 50 m is rejected
+        #expect(fix?.speedMps == nil)
     }
 }
