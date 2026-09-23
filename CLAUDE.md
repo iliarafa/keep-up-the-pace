@@ -52,3 +52,25 @@ TanStack Start + React 19 + Tailwind v4. There is one route (`src/routes/index.t
 **Browser APIs:** `use-geolocation.ts` uses `watchPosition` with high accuracy. If the device reports no speed, it derives speed from consecutive fixes and smooths it. `use-wake-lock.ts` holds a screen wake lock during `walk` and re-acquires it when the tab becomes visible again. Demo mode stops GPS and moves a fake fix toward the destination every 250 ms, starting 280 m away.
 
 **Styling:** design tokens live in `src/styles.css` under `@theme`, e.g. `--color-early`, `--color-late`, `--color-ontime` and `--tracking-label`. Use those tokens rather than raw colors. The `@/` import alias maps to `src/`.
+
+## iOS / watchOS app (`ios/`)
+
+The native iPhone and Apple Watch app is being built in `ios/`. The design is in `docs/superpowers/specs/2026-09-22-ios-watch-app-design.md`. The web app in `src/` is the **reference implementation** for the pace math and formatting; it is not shipped.
+
+- **The project is generated.** `ios/project.yml` (XcodeGen) is the source of truth. `KeepThePace.xcodeproj`, the `Info.plist` files and the `.entitlements` files are generated and gitignored. Change targets, capabilities, Info keys and build settings in `project.yml`, never in Xcode's settings panes; those edits are lost at the next generate.
+- **Targets:** `KeepThePace` (iOS app), `PaceActivity` (Live Activity extension), `KeepThePaceWatch` (watchOS app, embedded in the iOS app) and `PaceComplication` (watch widget extension). All four depend on the local package `ios/PaceKit`.
+- **Bundle IDs:** the prefix is `com.iliasrafailidis.delta`, the App Group is `group.com.iliasrafailidis.delta` and the team is `3DLV25C9VK`. The bundle ID cannot change once registered; the display name can.
+- **PaceKit** is pure Swift with no UI or Core Location, so all app logic that can be tested lives there. Its formatters use `JSNumber` (`Math.round` and `toFixed` semantics) so the output matches the web app character for character. Don't replace these with `String(format:)`: it rounds ties differently.
+- **Golden vectors:** `ios/PaceKit/Scripts/make-golden.mjs` runs the web TypeScript (`src/lib/geo.ts`, `src/lib/format.ts`) and writes `Tests/PaceKitTests/Fixtures/golden.json`. The Swift tests must match it. Regenerate only if the web reference changes intentionally.
+
+Commands (run from `ios/`):
+
+```bash
+make generate      # regenerate KeepThePace.xcodeproj after editing project.yml or adding files
+make test          # PaceKit unit tests (swift test), no simulator needed
+make golden        # regenerate golden.json from the web TypeScript
+make build-ios     # generate + build the iOS app (with embedded watch app) for the simulator
+make build-watch   # generate + build the watch app for the simulator
+```
+
+To run a single test: `cd ios/PaceKit && swift test --filter FormatTests` (a suite) or `--filter FormatTests/deltaMatchesWeb` (one test). Simulator builds pass `CODE_SIGNING_ALLOWED=NO`. On-device runs use Xcode with automatic signing.

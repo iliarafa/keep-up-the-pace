@@ -1,0 +1,129 @@
+name: KeepThePace
+options:
+  bundleIdPrefix: com.iliasrafailidis
+  deploymentTarget:
+    iOS: "17.0"
+    watchOS: "10.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    DEVELOPMENT_TEAM: 3DLV25C9VK
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+packages:
+  PaceKit:
+    path: PaceKit
+targets:
+  KeepThePace:
+    type: application
+    platform: iOS
+    sources: [KeepThePace]
+    dependencies:
+      - package: PaceKit
+      - target: PaceActivity
+      - target: KeepThePaceWatch
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.iliasrafailidis.delta
+        TARGETED_DEVICE_FAMILY: "1"
+    info:
+      path: KeepThePace/Info.plist
+      properties:
+        CFBundleDisplayName: Keep the Pace
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UIBackgroundModes: [location]
+        NSSupportsLiveActivities: true
+        NSLocationWhenInUseUsageDescription: Keep the Pace uses your location to measure how far you are from your destination and whether you're on schedule.
+        NSHealthShareUsageDescription: Keep the Pace reads your walking workouts so it can save walks you finish.
+        NSHealthUpdateUsageDescription: Keep the Pace saves finished walks to Apple Health as walking workouts.
+    entitlements:
+      path: KeepThePace/KeepThePace.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.iliasrafailidis.delta]
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.access: []
+  PaceActivity:
+    type: app-extension
+    platform: iOS
+    sources: [PaceActivity]
+    dependencies:
+      - package: PaceKit
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.iliasrafailidis.delta.PaceActivity
+        TARGETED_DEVICE_FAMILY: "1"
+    info:
+      path: PaceActivity/Info.plist
+      properties:
+        CFBundleDisplayName: Pace Activity
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: PaceActivity/PaceActivity.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.iliasrafailidis.delta]
+  KeepThePaceWatch:
+    type: application
+    platform: watchOS
+    sources: [KeepThePaceWatch]
+    dependencies:
+      - package: PaceKit
+      - target: PaceComplication
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.iliasrafailidis.delta.watchkitapp
+    info:
+      path: KeepThePaceWatch/Info.plist
+      properties:
+        CFBundleDisplayName: Keep the Pace
+        WKApplication: true
+        WKCompanionAppBundleIdentifier: com.iliasrafailidis.delta
+        WKBackgroundModes: [workout-processing]
+        NSLocationWhenInUseUsageDescription: Keep the Pace uses your location to measure how far you are from your destination and whether you're on schedule.
+        NSHealthShareUsageDescription: Keep the Pace reads your walking workouts so it can save walks you finish.
+        NSHealthUpdateUsageDescription: Keep the Pace saves finished walks to Apple Health as walking workouts.
+    entitlements:
+      path: KeepThePaceWatch/KeepThePaceWatch.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.iliasrafailidis.delta]
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.access: []
+  PaceComplication:
+    type: app-extension
+    platform: watchOS
+    sources: [PaceComplication]
+    dependencies:
+      - package: PaceKit
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.iliasrafailidis.delta.watchkitapp.PaceComplication
+    info:
+      path: PaceComplication/Info.plist
+      properties:
+        CFBundleDisplayName: Pace Complication
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: PaceComplication/PaceComplication.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.iliasrafailidis.delta]
+schemes:
+  KeepThePace:
+    build:
+      targets:
+        KeepThePace: all
+    run:
+      config: Debug
+  KeepThePaceWatch:
+    build:
+      targets:
+        KeepThePaceWatch: all
+    run:
+      config: Debug
