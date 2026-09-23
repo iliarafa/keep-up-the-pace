@@ -46,6 +46,15 @@ import Testing
         #expect(f.items[0].title == "350 5th Ave")
     }
 
+    @Test func recentsDecodeKeepsTheCap() throws {
+        let stored = (1...10).map { place("P\($0)", 40 + Double($0) / 100) }
+        let data = try JSONEncoder().encode(["places": stored])
+        let decoded = try JSONDecoder().decode(Recents.self, from: data)
+        #expect(decoded.places.map(\.name) == ["P1", "P2", "P3", "P4", "P5", "P6"])
+        let roundTrip = try JSONDecoder().decode(Recents.self, from: JSONEncoder().encode(decoded))
+        #expect(roundTrip == decoded)
+    }
+
     @Test func recentsKeepSixNewestWithoutDuplicates() {
         var r = Recents()
         for i in 1...7 { r.record(place("P\(i)", 40 + Double(i) / 100)) }

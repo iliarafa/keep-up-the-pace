@@ -79,6 +79,12 @@ public struct Recents: Codable, Equatable, Sendable {
         self.places = Array(places.prefix(Self.limit))
     }
 
+    /// Decodes through the same cap, so stored data can never hold more than `limit` places.
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(places: try values.decode([Place].self, forKey: .places))
+    }
+
     public mutating func record(_ place: Place) {
         places = Array(([place] + places.filter { $0.key != place.key }).prefix(Self.limit))
     }
