@@ -1,7 +1,7 @@
 # Keep the Pace — native iPhone + Apple Watch app
 
 **Date:** 2026-09-22
-**Status:** Draft for review
+**Status:** Approved. Amended 2026-09-23: pace colour rule, plus three web behaviours that were missing (start rules, the arrival result, stale-fix filter).
 
 ## Goal
 
@@ -48,14 +48,15 @@ This package is ported from `src/lib/geo.ts`, `src/lib/pace.ts` and `src/lib/for
 - Geodesy functions: `haversine`, `bearing`, `destinationPoint`, `moveTowards` and `cardinal`.
 - `Session` with `dest`, `start`, `startDistanceM`, `startAt`, `arriveBy`, `demo` and `routed`.
 - The pace calculation: `scheduleDeltaSec` works out the distance you've actually covered minus the distance a constant pace would have covered by now, then converts that into seconds. Positive means early.
-- Arrival: `ARRIVE_RADIUS_M = 18`, measured as straight-line distance.
+- Arrival: `ARRIVE_RADIUS_M = 18`, measured as straight-line distance. The arrival result is the delta worked out with 0 m remaining, which equals arrive-by minus the actual arrival time.
+- Session start rules, as in the web's `beginSession`: the start distance is at least 30 m, and arrive-by is at least now + 60 s.
 - The walk estimate at 1.34 m/s, rounded up to the minute.
 - `PaceStatusMachine`, which maps the delta to one of `ahead`, `onTime` or `behind`. It uses a configurable threshold (default 30 s) and a 5 s recovery margin, so the status must come back inside the band by 5 s before it flips back. It emits a `transition` event only when the status changes.
 - Formatting for distance, speed, clock time, duration, the ±m:ss delta and heading, in imperial or metric units. This matches the web output, including the "on time" rule for |delta| < 3 s.
 
 ### iOS app (`KeepThePace`)
 - `WalkSession` (`@Observable`): the phase machine (`setup → walk → arrived`), the active session, the latest metrics and which device is tracking (`.phone` or `.watch`).
-- `LocationService`: `CLLocationManager` with background location updates and the "When In Use" permission. The blue location indicator is on during walks. Fixes with horizontal accuracy worse than 50 m are ignored. Speed comes from `CLLocation.speed`, with a fallback worked out from consecutive fixes, smoothed as in the web version with the east-west correction applied correctly (see Known web bug).
+- `LocationService`: `CLLocationManager` with background location updates and the "When In Use" permission. The blue location indicator is on during walks. Fixes with horizontal accuracy worse than 50 m are ignored. So are fixes more than 1 s old when they arrive, matching the web's `maximumAge: 1000`, so a cached position never becomes a walk's start point (tune the 1 s after the M3 device walk if it drops real fixes). Speed comes from `CLLocation.speed`, with a fallback worked out from consecutive fixes, smoothed as in the web version with the east-west correction applied correctly (see Known web bug).
 - `DemoLocationSource`: the same interface as `LocationService`. It starts 280 m from the destination at a bearing of 188° and moves 1.72 ± 0.18 m/s, ticking every 250 ms, as in `use-pace-app.ts`. The default demo destination is Gantry Plaza State Park.
 - `PlaceSearchService`: type-ahead from `MKLocalSearchCompleter`, resolved with `MKLocalSearch`, biased to the user's region. Typed coordinates in `lat, lon` form are parsed directly.
 - `RouteService`: `MKDirections` with `.walking`. It returns the distance in metres, or nil if unavailable, in which case the app uses straight-line distance.
@@ -66,16 +67,16 @@ This package is ported from `src/lib/geo.ts`, `src/lib/pace.ts` and `src/lib/for
 
 ### Live Activity extension (`PaceActivity`)
 - `ActivityAttributes` holds the destination name and arrive-by time. `ContentState` holds `deltaSec`, `status`, `remainingM`, `units`, `arrived` and `trackingDevice`.
-- Lock screen: destination, ±m:ss in the status colour, distance left and arrive-by time.
+- Lock screen: destination, ±m:ss in the pace colour, distance left and arrive-by time.
 - Dynamic Island compact view: ±m:ss on the leading side and distance on the trailing side. The expanded view has the full layout.
 
 ### Watch app (`KeepThePaceWatch`)
-- `WatchWalkSession`: `HKWorkoutSession` (outdoor walking) with an `HKLiveWorkoutBuilder` and an `HKWorkoutRouteBuilder`. It uses the Watch's own Core Location and the PaceKit engine, and mirrors to the iPhone with `startMirroringToCompanionDevice`.
+- `WatchWalkSession`: `HKWorkoutSession` (outdoor walking) with an `HKLiveWorkoutBuilder` and an `HKWorkoutRouteBuilder`. It uses the Watch's own Core Location, with the same accuracy and stale-fix filters as the iPhone, and the PaceKit engine, and mirrors to the iPhone with `startMirroringToCompanionDevice`.
 - `WatchFeedback`: plays `WKInterfaceDevice.current().play(_:)` patterns. `.directionDown` means you've fallen behind, `.directionUp` means you're ahead, and `.success` means you're back on time. The final choice will be made on a real device.
 - Favorites are synced from the phone through `WatchConnectivity` application context.
 
 ### Watch widget extension (`PaceComplication`)
-Complication and Smart Stack widget: ±m:ss in the status colour during a walk, or the app icon when idle.
+Complication and Smart Stack widget: ±m:ss in the pace colour during a walk, or the app icon when idle.
 
 ## 2. How a walk runs
 
@@ -84,6 +85,7 @@ Complication and Smart Stack widget: ±m:ss in the status colour during a walk, 
 2. `RouteService` fetches the walking distance. Until it returns, the straight-line distance is used. Arrive-by defaults to `roundUpToMinute(now + distance / 1.34 m/s)`. The routed distance replaces the straight-line default only if the user hasn't touched the time and hasn't changed the destination since. This mirrors `etaTouched` and `planToken`.
 3. The user adjusts arrive-by with the native time picker or the −1 and +1 minute buttons. Arrive-by is always at least now + 1 minute.
 4. The Start button shows "on Apple Watch" or "on iPhone", following the rule below.
+5. At Start, the session's start distance is set to at least 30 m and its arrive-by to at least now + 60 s. This applies to every start: iPhone, Watch-only and demo.
 
 ### Choosing the tracking device
 - The **Watch** is used if all of these hold: the setting "Prefer Apple Watch when available" is on, a Watch is paired, the Watch app is installed, and HealthKit authorization allows workouts.
@@ -105,7 +107,7 @@ On each accepted fix, whether the app is in the foreground or the background:
 From the Watch's idle screen, tapping a favorite starts a walk immediately. It uses straight-line distance, since the Watch doesn't use MapKit routing, and an arrive-by of `roundUpToMinute(now + estimate)`. Mirroring to the iPhone happens if it's reachable.
 
 ### Arrival and end
-- Arrival is straight-line distance ≤ 18 m. `deltaSec` freezes, the arrived screen shows "Arrived m:ss early/late" or "on time", the Live Activity ends showing the final state and is dismissed after 4 minutes, location updates stop, and the workout is saved to Health.
+- Arrival is straight-line distance ≤ 18 m. `deltaSec` freezes at the value worked out with 0 m remaining, which is exactly arrive-by minus the arrival time, as on the web. The last few metres inside the radius therefore don't shift the result. The arrived screen shows "Arrived m:ss early/late" or "on time", the Live Activity ends showing the final state and is dismissed after 4 minutes, location updates stop, and the workout is saved to Health.
 - If you press End before arriving, the walk stops and is saved to Health if it lasted at least 60 s and covered at least 50 m. Otherwise it's discarded.
 - A walk tracked on the iPhone is saved with `HKWorkoutBuilder` plus `HKWorkoutRouteBuilder`, using the same activity type and data.
 
@@ -124,6 +126,8 @@ From the Watch's idle screen, tapping a favorite starts a walk immediately. It u
 
 The visual language carries over from the web app: a dark background; the tokens from `src/styles.css` for `early` (#8fad9a), `late` (#c9897a) and `ontime` (#f3f1ec); monospaced digits for ±m:ss; and uppercase labels with wide letter spacing. Dynamic Type and VoiceOver are supported everywhere.
 
+**Pace colour.** Wherever ±m:ss appears (walk screens, Live Activity, complication), its colour and its "early", "late" or "on time" label follow the web rule: within 3 s of schedule is on time (`DeltaTone` in PaceKit). The alert threshold (15, 30 or 60 s, tracked by `PaceStatus`) only decides when the iPhone or Watch buzzes. It never changes the colour.
+
 ### iPhone
 1. **First launch:** one explainer screen. Permissions are requested at the moment they're needed: location on the first search or start, Health on the first walk, and notifications only if Live Activity alerts need them.
 2. **Setup:**
@@ -134,7 +138,7 @@ The visual language carries over from the web app: a dark background; the tokens
    - Start, with the tracking device shown underneath.
    - A Demo link.
    - Long-pressing a result or the destination card stars it as a favorite.
-3. **Walk:** the destination and "X left · arrive-by time" at the top. Below that, a huge ±m:ss in the status colour with an "early", "late" or "on time" label, then distance left, the heading arrow with its compass direction, speed and End. A small line says "Tracking on Apple Watch" or "Tracking on iPhone".
+3. **Walk:** the destination and "X left · arrive-by time" at the top. Below that, a huge ±m:ss in the pace colour with an "early", "late" or "on time" label, then distance left, the heading arrow with its compass direction, speed and End. A small line says "Tracking on Apple Watch" or "Tracking on iPhone".
 4. **Arrived:** the result, target versus actual arrival time, distance, duration, a "Saved to Health" confirmation, Done, and "☆ Favorite this place" if it isn't one yet.
 5. **Favorites:** reorder, delete, and set a custom label.
 6. **Settings:**
@@ -148,7 +152,7 @@ The visual language carries over from the web app: a dark background; the tokens
 
 ### Apple Watch
 - **Idle:** "Plan a walk on your iPhone" and the favorites list. Tapping a favorite starts a walk.
-- **Walk:** page 1 shows a full-screen ±m:ss in the status colour, a small heading arrow and the distance left. Page 2 has End.
+- **Walk:** page 1 shows a full-screen ±m:ss in the pace colour, a small heading arrow and the distance left. Page 2 has End.
 - **Arrived:** the result and "Saved to Health".
 - **Complication and Smart Stack:** ±m:ss during a walk, or the app icon when idle.
 
