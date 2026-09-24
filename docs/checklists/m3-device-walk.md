@@ -43,7 +43,7 @@ Pick a place 0.5–0.8 mi (800–1300 m) away, and keep the arrive-by time the a
 
 ## If something is off
 
-Note the time and what you saw, then collect the phone's log on the Mac:
+Note the time and what you saw (for example, a buzz while you were walking at a steady pace), then collect the phone's log on the Mac:
 1. Connect the phone to the Mac with a cable, unlock it, and trust the Mac if asked.
 2. In Terminal, run `sudo log collect --device --last 1h --output ~/Desktop/walk.logarchive`.
 3. Open `walk.logarchive` in Console and search for `com.iliasrafailidis.delta`.
@@ -52,6 +52,7 @@ You'll see these lines:
 - "Status alert: …" for each alert the app sent, and "Status alert not shown …" when there was no Live Activity to carry one (Live Activities not allowed).
 - "Walk GPS: N readings used, N stale (oldest X s), N inaccurate" when a walk ends. Many stale readings mean the 1 s stale-fix limit (spec §1) needs tuning.
 - "No walking route: …" when Apple Maps couldn't route, so the distance fell back to the straight line.
+- "Route refresh: N m left by street, was N m" about once a minute. When the two numbers are far apart, Apple Maps' route changed under you (for example, after a GPS fix on the next street over), and ±m:ss jumps with it. A jump like that can buzz while you walk at a steady pace.
 
 ## Results
 

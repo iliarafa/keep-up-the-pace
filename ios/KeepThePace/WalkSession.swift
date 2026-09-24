@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import OSLog
 import PaceKit
 import SwiftUI
 
@@ -38,6 +39,7 @@ final class WalkSession {
     @ObservationIgnored private var refreshingRoute = false
     @ObservationIgnored private var alerts = WalkAlerts(thresholdSec: AlertThreshold.thirty.seconds)
     @ObservationIgnored private var appActive = true
+    @ObservationIgnored private let log = Logger(subsystem: "com.iliasrafailidis.delta", category: "route")
 
     /// `clock` and `tickInterval` exist for tests: a test passes its own clock and a nil interval,
     /// and calls `tick()` itself.
@@ -258,6 +260,9 @@ final class WalkSession {
             let distance = await routes.walkingDistanceM(from: from.coordinate, to: to)
             guard id == walkID else { return }
             if let distance {
+                // For the device walk: a big gap here moves ±m:ss, and can buzz, at a steady pace.
+                let was = Int((metrics?.remainingM ?? 0).rounded())
+                log.notice("Route refresh: \(Int(distance.rounded())) m left by street, was \(was) m")
                 self.engine?.routeRefreshed(distanceM: distance, from: from.coordinate, now: clock())
             } else {
                 self.engine?.routeRefreshFailed(now: clock())
