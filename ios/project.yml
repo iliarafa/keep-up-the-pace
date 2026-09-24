@@ -19,7 +19,7 @@ targets:
   KeepThePace:
     type: application
     platform: iOS
-    sources: [KeepThePace]
+    sources: [KeepThePace, Shared]
     dependencies:
       - package: PaceKit
       - target: PaceActivity
@@ -72,7 +72,7 @@ targets:
   PaceActivity:
     type: app-extension
     platform: iOS
-    sources: [PaceActivity]
+    sources: [PaceActivity, Shared]
     dependencies:
       - package: PaceKit
       - sdk: WidgetKit.framework
