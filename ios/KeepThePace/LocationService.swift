@@ -1,26 +1,32 @@
 import CoreLocation
 import Observation
+import OSLog
 import PaceKit
 
-/// Foreground GPS ("When In Use"). Readings go through PaceKit's `SpeedEstimator`, which drops
-/// inaccurate and stale ones and smooths the speed. Background updates come in M3.
+/// The iPhone's GPS ("When In Use"). Readings go through PaceKit's `SpeedEstimator`, which drops
+/// inaccurate and stale ones and smooths the speed. During a walk, updates continue in the
+/// background with the blue location indicator showing (spec §1).
 @MainActor
 @Observable
 final class LocationService: NSObject, LocationProviding, CLLocationManagerDelegate {
+    /// The Info.plist `NSLocationTemporaryUsageDescriptionDictionary` key for precise location.
+    static let precisePurposeKey = "PreciseWalk"
+
     private(set) var access: LocationAccess = .notDetermined
-    /// The latest accepted fix, or nil until one arrives.
+    private(set) var precise = true
     private(set) var latestFix: GPSFix?
     @ObservationIgnored var onFix: ((GPSFix) -> Void)?
     @ObservationIgnored private let manager = CLLocationManager()
     @ObservationIgnored private var estimator = SpeedEstimator()
     @ObservationIgnored private var wantsUpdates = false
+    @ObservationIgnored private let log = Logger(subsystem: "com.iliasrafailidis.delta", category: "location")
 
     override init() {
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBest
         manager.activityType = .fitness
-        access = Self.access(for: manager.authorizationStatus)
+        readAuthorization()
     }
 
     /// Starts updates, asking for permission first if the user hasn't been asked yet.
@@ -43,10 +49,25 @@ final class LocationService: NSObject, LocationProviding, CLLocationManagerDeleg
         latestFix = nil
     }
 
+    /// Updates started (or restarted) while the app is in the foreground then keep coming in the
+    /// background, until this is turned off again.
+    func setBackgroundTracking(_ on: Bool) {
+        manager.allowsBackgroundLocationUpdates = on
+        manager.pausesLocationUpdatesAutomatically = !on
+        manager.showsBackgroundLocationIndicator = on
+        if on, wantsUpdates, access == .allowed {
+            manager.startUpdatingLocation()
+        }
+    }
+
+    func requestPrecise() {
+        manager.requestTemporaryFullAccuracyAuthorization(withPurposeKey: Self.precisePurposeKey)
+    }
+
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         // Delegate calls arrive on the main thread, where the manager was created.
         MainActor.assumeIsolated {
-            access = Self.access(for: self.manager.authorizationStatus)
+            readAuthorization()
             if access == .allowed, wantsUpdates {
                 self.manager.startUpdatingLocation()
             }
@@ -66,22 +87,34 @@ final class LocationService: NSObject, LocationProviding, CLLocationManagerDeleg
     }
 
     private func accept(_ location: CLLocation) {
+        let receivedAt = Date.now
         guard let fix = estimator.accept(
             coordinate: LatLon(location.coordinate),
             reportedSpeedMps: location.speed,
             accuracyM: location.horizontalAccuracy,
             timestamp: location.timestamp,
-            receivedAt: .now)
-        else { return }
+            receivedAt: receivedAt)
+        else {
+            if let reason = estimator.lastRejection {
+                let age = receivedAt.timeIntervalSince(location.timestamp)
+                log.debug("""
+                    Dropped a \(reason.rawValue, privacy: .public) reading: \
+                    accuracy \(location.horizontalAccuracy, format: .fixed(precision: 0)) m, \
+                    age \(age, format: .fixed(precision: 1)) s
+                    """)
+            }
+            return
+        }
         latestFix = fix
         onFix?(fix)
     }
 
-    private static func access(for status: CLAuthorizationStatus) -> LocationAccess {
-        switch status {
+    private func readAuthorization() {
+        access = switch manager.authorizationStatus {
         case .notDetermined: .notDetermined
         case .authorizedWhenInUse, .authorizedAlways: .allowed
         default: .denied
         }
+        precise = manager.accuracyAuthorization == .fullAccuracy
     }
 }

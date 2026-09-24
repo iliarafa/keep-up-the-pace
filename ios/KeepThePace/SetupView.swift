@@ -264,7 +264,12 @@ struct SetupView: View {
     private var locationLine: some View {
         switch walk.location.access {
         case .allowed:
-            if walk.origin != nil {
+            if !walk.location.precise {
+                Button("Precise Location is off. Tap to allow it for this walk.") { walk.location.requestPrecise() }
+                    .font(.caption)
+                    .foregroundStyle(Theme.late)
+                    .multilineTextAlignment(.center)
+            } else if walk.origin != nil {
                 Text("GPS ready").font(.caption).foregroundStyle(Theme.early)
             } else {
                 Text("Waiting for GPS…").font(.caption).foregroundStyle(Theme.muted)

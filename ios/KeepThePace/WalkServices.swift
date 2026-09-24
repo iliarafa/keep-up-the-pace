@@ -10,8 +10,14 @@ enum LocationAccess {
 @MainActor
 protocol LocationProviding: FixSource {
     var access: LocationAccess { get }
+    /// False when Precise Location is off; fixes are then too coarse to use.
+    var precise: Bool { get }
     /// The latest accepted fix, or nil until one arrives.
     var latestFix: GPSFix? { get }
+    /// Keeps location updates coming while the app is in the background, for the length of a walk.
+    func setBackgroundTracking(_ on: Bool)
+    /// Asks for precise location for this walk when Precise Location is off.
+    func requestPrecise()
 }
 
 /// Walking distance along streets: `RouteService` (Apple Maps) in the app, a fake in tests.

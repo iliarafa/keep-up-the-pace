@@ -52,4 +52,27 @@ import Testing
         #expect(fix != nil)   // unknown accuracy is accepted; only worse than 50 m is rejected
         #expect(fix?.speedMps == nil)
     }
+
+    @Test func dropsSayWhy() {
+        var e = SpeedEstimator()
+        _ = e.accept(coordinate: here, reportedSpeedMps: 1, accuracyM: 80, timestamp: t0, receivedAt: t0)
+        #expect(e.lastRejection == .inaccurate)
+        _ = e.accept(coordinate: here, reportedSpeedMps: 1, accuracyM: 5, timestamp: t0, receivedAt: t0 + 5)
+        #expect(e.lastRejection == .stale)
+        _ = e.accept(coordinate: here, reportedSpeedMps: 1, accuracyM: 5, timestamp: t0, receivedAt: t0)
+        #expect(e.lastRejection == nil)
+    }
+
+    @Test func aDroppedReadingKeepsTheLastFix() {
+        var e = SpeedEstimator()
+        let first = e.accept(coordinate: here, reportedSpeedMps: 1.2, accuracyM: 5, timestamp: t0, receivedAt: t0)
+        _ = e.accept(coordinate: LatLon(lat: 60.01, lon: 10), reportedSpeedMps: 9, accuracyM: 90, timestamp: t0 + 1, receivedAt: t0 + 1)
+        #expect(e.last == first)
+    }
+
+    @Test func readingsStampedAheadOfTheClockAreAccepted() {
+        // A phone clock slightly behind the GPS time must not drop every reading.
+        var e = SpeedEstimator()
+        #expect(e.accept(coordinate: here, reportedSpeedMps: 1, accuracyM: 5, timestamp: t0 + 2, receivedAt: t0) != nil)
+    }
 }

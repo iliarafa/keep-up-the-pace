@@ -9,18 +9,33 @@ public struct SpeedEstimator: Sendable {
     public static let maxAccuracyM = 50.0
     /// Readings older than this when they arrive are cached positions, not live ones.
     public static let maxAgeSec: TimeInterval = 1
+
+    /// Why a reading was dropped.
+    public enum Rejection: String, Sendable {
+        case inaccurate, stale
+    }
+
     public private(set) var last: GPSFix?
+    /// Why the latest reading was dropped, or nil if it was accepted. For logging.
+    public private(set) var lastRejection: Rejection?
 
     public init() {}
 
-    /// Returns nil (and keeps no state) for readings with invalid or worse-than-50 m accuracy, and
-    /// for readings more than `maxAgeSec` old when they arrived — so a cached position never
-    /// becomes a walk's start point.
+    /// Returns nil for readings with invalid or worse-than-50 m accuracy, and for readings more
+    /// than `maxAgeSec` old when they arrived — so a cached position never becomes a walk's start
+    /// point. A dropped reading leaves `last` alone and sets `lastRejection`.
     public mutating func accept(
         coordinate: LatLon, reportedSpeedMps: Double?, accuracyM: Double?, timestamp: Date, receivedAt: Date
     ) -> GPSFix? {
-        if let accuracyM, accuracyM < 0 || accuracyM > Self.maxAccuracyM { return nil }
-        if receivedAt.timeIntervalSince(timestamp) > Self.maxAgeSec { return nil }
+        if let accuracyM, accuracyM < 0 || accuracyM > Self.maxAccuracyM {
+            lastRejection = .inaccurate
+            return nil
+        }
+        if receivedAt.timeIntervalSince(timestamp) > Self.maxAgeSec {
+            lastRejection = .stale
+            return nil
+        }
+        lastRejection = nil
         var speed = reportedSpeedMps.flatMap { $0 >= 0 ? $0 : nil }
         if speed == nil, let last {
             let dt = timestamp.timeIntervalSince(last.timestamp)

@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import PaceKit
+import SwiftUI
 
 /// The app's walk flow: setup → walk → arrived. Planning rules, pace maths and arrival live in
 /// PaceKit (`WalkPlanner`, `Session.begin`, `WalkEngine`); this class wires them to the GPS, the
@@ -62,6 +63,17 @@ final class WalkSession {
     /// "Enable location" prompt (spec: location is requested at the moment it's needed).
     func requestLocation() {
         location.start()
+    }
+
+    /// The app moved to or from the foreground. In setup, GPS stops in the background, so an old
+    /// fix is never a walk's start point.
+    func sceneChanged(_ scene: ScenePhase) {
+        guard phase == .setup else { return }
+        switch scene {
+        case .background: location.stop()
+        case .active: setupAppeared()
+        default: break
+        }
     }
 
     func choose(_ place: Place) {
@@ -129,6 +141,7 @@ final class WalkSession {
         engine = WalkEngine(session: session)
         saved.recents.record(session.dest)
         phase = .walk
+        if !session.demo { location.setBackgroundTracking(true) }
         if let firstFix { walkFix(firstFix) }
         guard let tickInterval else { return }
         ticker = Task { [weak self] in
@@ -192,6 +205,9 @@ final class WalkSession {
         ticker = nil
         demo?.stop()
         demo = nil
-        if engine?.session.demo == false { location.stop() }
+        if engine?.session.demo == false {
+            location.setBackgroundTracking(false)
+            location.stop()
+        }
     }
 }

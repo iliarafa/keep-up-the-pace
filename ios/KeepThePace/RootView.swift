@@ -3,6 +3,7 @@ import SwiftUI
 struct RootView: View {
     let walk: WalkSession
     let saved: SavedData
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Group {
@@ -19,5 +20,6 @@ struct RootView: View {
         }
         .preferredColorScheme(.dark)
         .tint(Theme.accent)
+        .onChange(of: scenePhase) { _, newPhase in walk.sceneChanged(newPhase) }
     }
 }

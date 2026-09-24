@@ -40,6 +40,8 @@ targets:
         UIBackgroundModes: [location]
         NSSupportsLiveActivities: true
         NSLocationWhenInUseUsageDescription: Keep the Pace uses your location to measure how far you are from your destination and whether you're on schedule.
+        NSLocationTemporaryUsageDescriptionDictionary:
+          PreciseWalk: Keep the Pace needs your precise location to tell whether you're on schedule to within a few seconds.
         NSHealthShareUsageDescription: Keep the Pace reads your walking workouts so it can save walks you finish.
         NSHealthUpdateUsageDescription: Keep the Pace saves finished walks to Apple Health as walking workouts.
     entitlements:

@@ -7,8 +7,10 @@ import PaceKit
 final class FakeLocation: LocationProviding {
     var onFix: ((GPSFix) -> Void)?
     var access: LocationAccess = .allowed
+    var precise = true
     private(set) var latestFix: GPSFix?
     private(set) var running = false
+    private(set) var backgroundTracking = false
 
     func start() { running = true }
 
@@ -16,6 +18,10 @@ final class FakeLocation: LocationProviding {
         running = false
         latestFix = nil
     }
+
+    func setBackgroundTracking(_ on: Bool) { backgroundTracking = on }
+
+    func requestPrecise() {}
 
     func send(_ fix: GPSFix) {
         latestFix = fix
