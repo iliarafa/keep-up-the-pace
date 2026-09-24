@@ -15,6 +15,7 @@ final class DemoLocationSource: FixSource {
     }
 
     func start() {
+        stop()  // a restart never leaves a second tick loop running
         onFix?(current)
         task = Task { [weak self] in
             while !Task.isCancelled {
