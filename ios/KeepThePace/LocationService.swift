@@ -19,6 +19,9 @@ final class LocationService: NSObject, LocationProviding, CLLocationManagerDeleg
     @ObservationIgnored private let manager = CLLocationManager()
     @ObservationIgnored private var estimator = SpeedEstimator()
     @ObservationIgnored private var wantsUpdates = false
+    /// This walk's readings, for one log line when it ends: used, dropped as stale (with the
+    /// oldest), dropped as inaccurate.
+    @ObservationIgnored private var tally = (used: 0, stale: 0, oldestStaleSec: 0.0, inaccurate: 0)
     @ObservationIgnored private let log = Logger(subsystem: "com.iliasrafailidis.delta", category: "location")
 
     override init() {
@@ -52,6 +55,15 @@ final class LocationService: NSObject, LocationProviding, CLLocationManagerDeleg
     /// Updates started (or restarted) while the app is in the foreground then keep coming in the
     /// background, until this is turned off again.
     func setBackgroundTracking(_ on: Bool) {
+        if on {
+            tally = (0, 0, 0, 0)
+        } else {
+            log.notice("""
+                Walk GPS: \(self.tally.used) readings used, \(self.tally.stale) stale \
+                (oldest \(self.tally.oldestStaleSec, format: .fixed(precision: 1)) s), \
+                \(self.tally.inaccurate) inaccurate
+                """)
+        }
         manager.allowsBackgroundLocationUpdates = on
         manager.pausesLocationUpdatesAutomatically = !on
         manager.showsBackgroundLocationIndicator = on
@@ -97,6 +109,13 @@ final class LocationService: NSObject, LocationProviding, CLLocationManagerDeleg
         else {
             if let reason = estimator.lastRejection {
                 let age = receivedAt.timeIntervalSince(location.timestamp)
+                switch reason {
+                case .stale:
+                    tally.stale += 1
+                    tally.oldestStaleSec = max(tally.oldestStaleSec, age)
+                case .inaccurate:
+                    tally.inaccurate += 1
+                }
                 log.debug("""
                     Dropped reading (\(reason.rawValue, privacy: .public)): \
                     accuracy \(location.horizontalAccuracy, format: .fixed(precision: 0)) m, \
@@ -105,6 +124,7 @@ final class LocationService: NSObject, LocationProviding, CLLocationManagerDeleg
             }
             return
         }
+        tally.used += 1
         latestFix = fix
         onFix?(fix)
     }

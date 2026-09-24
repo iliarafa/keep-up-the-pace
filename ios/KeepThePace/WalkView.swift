@@ -38,7 +38,7 @@ struct WalkView: View {
                     .accessibilityIdentifier("endButton")
             }
 
-            if !session.demo, walk.location.access == .denied {
+            if walk.locationPaused {
                 Label("Location paused. Turn location back on to keep tracking.", systemImage: "location.slash")
                     .font(.footnote)
                     .foregroundStyle(Theme.late)

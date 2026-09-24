@@ -11,13 +11,14 @@ import Testing
             walkedM: 100, arrived: arrived)
     }
 
+    /// One update at `now + t`, judged from a fix taken `fixAge` seconds earlier.
     func update(
         _ a: inout WalkAlerts, delta: Double, at t: TimeInterval, arrived: Bool = false, paused: Bool = false,
-        appActive: Bool = false, haptics: Bool = true
+        appActive: Bool = false, haptics: Bool = true, fixAge: TimeInterval = 0
     ) -> WalkAlerts.Decision {
         a.update(
-            metrics(delta: delta, arrived: arrived), units: .metric, locationPaused: paused, now: now + t,
-            appActive: appActive, hapticsOn: haptics)
+            metrics(delta: delta, arrived: arrived), fixAt: now + t - fixAge, units: .metric, locationPaused: paused,
+            now: now + t, appActive: appActive, hapticsOn: haptics)
     }
 
     @Test func firstUpdateGoesOutAtOnce() {
@@ -92,5 +93,35 @@ import Testing
         #expect(PaceActivityState.alertTitle(for: .onTime) == "Back on pace")
         let state = PaceActivityState(deltaSec: -45, status: .behind, remainingM: 643.7, units: .imperial, arrived: false)
         #expect(state.alertBody == "\u{2212}0:45 · 0.4 mi to go")
+    }
+
+    @Test func aStaleFixHoldsTheStatus() {
+        var a = WalkAlerts(thresholdSec: 30)
+        _ = update(&a, delta: -5, at: 0)
+        let held = update(&a, delta: -40, at: 20, fixAge: 16)  // judged from a 16 s old fix
+        #expect(held.activity?.status == .onTime)
+        #expect(held.alert == nil)
+        #expect(held.haptic == nil)
+        #expect(update(&a, delta: -40, at: 21).alert == .behind)  // a fresh fix judges again
+    }
+
+    @Test func locationPausedHoldsTheStatus() {
+        var a = WalkAlerts(thresholdSec: 30)
+        _ = update(&a, delta: -5, at: 0)
+        let paused = update(&a, delta: -40, at: 3, paused: true)
+        #expect(paused.activity?.locationPaused == true)
+        #expect(paused.activity?.status == .onTime)
+        #expect(paused.alert == nil)
+    }
+
+    @Test func aUnitsChangeGoesOutAtOnce() {
+        var a = WalkAlerts(thresholdSec: 30)
+        _ = a.update(
+            metrics(delta: -5), fixAt: now, units: .metric, locationPaused: false, now: now, appActive: false,
+            hapticsOn: true)
+        let d = a.update(
+            metrics(delta: -5), fixAt: now + 2, units: .imperial, locationPaused: false, now: now + 2,
+            appActive: false, hapticsOn: true)
+        #expect(d.activity?.units == .imperial)
     }
 }

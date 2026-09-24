@@ -25,35 +25,33 @@ Pick a place 0.5–0.8 mi (800–1300 m) away, and keep the arrive-by time the a
    - falling behind: two taps, stepping down
    - getting ahead: two taps, stepping up
    - back on pace: one soft tap
-8. [ ] On the home screen, the Dynamic Island shows the ±m:ss on the left and the distance on the right. Touch and hold it for the full view.
-9. [ ] Arrive. The lock screen shows "ARRIVED m:ss EARLY" (or LATE, or ON TIME) and "Target h:mm". It disappears about 4 minutes later, and the location indicator goes off.
+8. [ ] On an iPhone with a Dynamic Island, the home screen's Dynamic Island shows the ±m:ss on the left and the distance on the right. Touch and hold it for the full view.
+9. [ ] Arrive. The lock screen shows the final ±m:ss with "ARRIVED EARLY" (or LATE, or ON TIME) under it, and "Target h:mm". It disappears about 4 minutes later, and the location indicator goes off.
 
 ## Force-quit and resume (about 5 minutes)
 
-10. [ ] Start another walk, then swipe the app away in the app switcher.
-11. [ ] After 2–3 minutes, the lock screen says "Not updating. Open Keep the Pace."
-12. [ ] Open the app. A "Walk in progress" card offers Resume and End walk. Tap Resume: the walk carries on with the same arrive-by, and the same Live Activity updates again. There is no second one.
+10. [ ] Start another walk, then swipe the app away in the app switcher. Keep walking at your normal pace.
+11. [ ] After 2–3 minutes, still walking, the lock screen says "Not updating. Open Keep the Pace."
+12. [ ] Open the app. A "Walk in progress" card offers Resume and End walk. Tap Resume: the walk carries on with the same arrive-by, and the same Live Activity updates again (there is no second one). There is no "Falling behind" buzz just for having been away.
 13. [ ] End the walk. The Live Activity disappears at once.
 
 ## Edge cases
 
-14. [ ] During a walk, set Settings › Privacy & Security › Location Services › Keep the Pace to Never. The walk screen shows the "Location paused" banner and the Live Activity says "Location paused". Set it back to While Using the App: tracking carries on.
+14. [ ] During a walk, set Settings › Privacy & Security › Location Services › Keep the Pace to Never. The walk screen shows the "Location paused" banner, the Live Activity says "Location paused", and the phone doesn't buzz while location is off. Set it back to While Using the App: tracking carries on.
 15. [ ] Turn Precise Location off for Keep the Pace. The setup screen shows "Precise Location is off. Tap to allow it for this walk." Tap it and allow: "GPS ready" follows.
 16. [ ] Turn off Settings › Alerts › iPhone haptics in the app. Status changes no longer buzz, in the app or on the lock screen. The Live Activity still updates.
 
 ## If something is off
 
-Note the time and what you saw. With the phone connected to the Mac:
-1. Open Console.app and select the phone.
-2. Turn on Action › Include Info Messages and Include Debug Messages.
-3. Search for `com.iliasrafailidis.delta`.
+Note the time and what you saw, then collect the phone's log on the Mac:
+1. Connect the phone to the Mac with a cable, unlock it, and trust the Mac if asked.
+2. In Terminal, run `sudo log collect --device --last 1h --output ~/Desktop/walk.logarchive`.
+3. Open `walk.logarchive` in Console and search for `com.iliasrafailidis.delta`.
 
-You'll see three kinds of line:
-- "Status alert: …" for each alert the app sent.
-- "Dropped reading (stale)" or "Dropped reading (inaccurate)" for each GPS reading it ignored.
+You'll see these lines:
+- "Status alert: …" for each alert the app sent, and "Status alert not shown …" when there was no Live Activity to carry one (Live Activities not allowed).
+- "Walk GPS: N readings used, N stale (oldest X s), N inaccurate" when a walk ends. Many stale readings mean the 1 s stale-fix limit (spec §1) needs tuning.
 - "No walking route: …" when Apple Maps couldn't route, so the distance fell back to the straight line.
-
-Many stale drops while you walk mean the 1 s stale-fix limit (spec §1) needs tuning.
 
 ## Results
 

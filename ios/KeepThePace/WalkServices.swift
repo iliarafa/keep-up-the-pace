@@ -33,9 +33,10 @@ protocol LiveActivityControlling: AnyObject {
     /// an earlier launch left for the same walk), then updates it. `alert` lights up the lock
     /// screen and buzzes for that status change.
     func show(_ state: PaceActivityState, for session: Session, alert: PaceStatus?)
-    /// Ends the walk's Live Activity showing `state`. It stays on the lock screen for
-    /// `dismissAfter` seconds, or goes at once when that is nil.
-    func end(_ state: PaceActivityState?, dismissAfter: TimeInterval?)
+    /// Ends the walk's Live Activity showing `state`, adopting it first if an earlier launch
+    /// started it. It stays on the lock screen for `dismissAfter` seconds, or goes at once when
+    /// that is nil.
+    func end(_ state: PaceActivityState?, for session: Session, dismissAfter: TimeInterval?)
     /// Ends every Live Activity an earlier launch left behind.
     func endAll()
 }

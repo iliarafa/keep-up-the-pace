@@ -7,7 +7,7 @@ import PaceKit
 
 /// Starts, updates and ends the walk's Live Activity (spec §1). Each update is marked stale two
 /// minutes on, so a Live Activity left behind by a force-quit shows that it stopped updating
-/// (spec §2).
+/// (spec §2). A relaunched app adopts the Live Activity its walk already has.
 @MainActor
 final class LiveActivityController: LiveActivityControlling {
     static let staleAfterSec: TimeInterval = 120
@@ -22,19 +22,25 @@ final class LiveActivityController: LiveActivityControlling {
         }
         guard let activity else {
             start(session, content)
+            if let alert {
+                log.notice("""
+                    Status alert not shown, no Live Activity to carry it: \
+                    \(PaceActivityState.alertTitle(for: alert), privacy: .public)
+                    """)
+            }
             return
         }
         var alertConfiguration: AlertConfiguration?
         if let alert {
             let title = PaceActivityState.alertTitle(for: alert)
-            log.info("Status alert: \(title, privacy: .public), \(state.alertBody, privacy: .public)")
+            log.notice("Status alert: \(title, privacy: .public), \(state.alertBody, privacy: .public)")
             alertConfiguration = AlertConfiguration(title: "\(title)", body: "\(state.alertBody)", sound: .default)
         }
         Task { await activity.update(content, alertConfiguration: alertConfiguration) }
     }
 
-    func end(_ state: PaceActivityState?, dismissAfter: TimeInterval?) {
-        guard let activity else { return }
+    func end(_ state: PaceActivityState?, for session: Session, dismissAfter: TimeInterval?) {
+        guard let activity = activity ?? Self.running(for: session) else { return }
         self.activity = nil
         let content = state.map { ActivityContent(state: $0, staleDate: nil) }
         let policy: ActivityUIDismissalPolicy = dismissAfter.map { .after(.now + $0) } ?? .immediate

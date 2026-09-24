@@ -31,7 +31,7 @@ struct SettingsView: View {
             } header: {
                 Text("Alerts")
             } footer: {
-                Text("Buzz when you fall this far behind or get this far ahead, and when you're back on pace. With the phone locked, the buzz comes from the Live Activity.")
+                Text("Buzz when you fall this far behind or get this far ahead, and when you're back on pace. With the phone locked, the buzz comes from the Live Activity, so allow Live Activities for Keep the Pace.")
             }
             .listRowBackground(Theme.surface)
 

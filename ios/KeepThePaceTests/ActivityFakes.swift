@@ -23,7 +23,7 @@ final class FakeLiveActivity: LiveActivityControlling {
         shown.append(Shown(state: state, alert: alert))
     }
 
-    func end(_ state: PaceActivityState?, dismissAfter: TimeInterval?) {
+    func end(_ state: PaceActivityState?, for session: Session, dismissAfter: TimeInterval?) {
         ended.append(Ended(state: state, dismissAfter: dismissAfter))
     }
 

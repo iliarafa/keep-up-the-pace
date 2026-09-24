@@ -18,7 +18,9 @@ final class FeedbackController: FeedbackPlaying {
             let pattern = try CHHapticPattern(events: Self.taps(for: status), parameters: [])
             try engine.makePlayer(with: pattern).start(atTime: CHHapticTimeImmediate)
         } catch {
-            // Haptics are a nicety: a failure here must never disturb the walk.
+            // Haptics are a nicety: a failure here must never disturb the walk. Drop the engine so
+            // the next status change starts a fresh one.
+            engine = nil
         }
     }
 

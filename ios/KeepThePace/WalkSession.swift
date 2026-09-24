@@ -151,7 +151,9 @@ final class WalkSession {
         guard let active = pendingResume else { return }
         pendingResume = nil
         location.start()
-        begin(active.engine, status: active.status, firstFix: nil)
+        // Judge the pace from where the walker is now when GPS already has a fix. The saved fix is
+        // from before the force-quit, and WalkAlerts won't judge by it.
+        begin(active.engine, status: active.status, firstFix: origin)
     }
 
     /// Ends the walk the app was force-quit during, without resuming it.
@@ -163,7 +165,7 @@ final class WalkSession {
 
     /// Ends the walk (End) or leaves the arrived screen (Done).
     func finish() {
-        if phase == .walk { liveActivity.end(nil, dismissAfter: nil) }
+        if phase == .walk, let session = engine?.session { liveActivity.end(nil, for: session, dismissAfter: nil) }
         stopWalk()
         saved.activeWalk = nil
         engine = nil
@@ -186,7 +188,7 @@ final class WalkSession {
         } else {
             tick()
         }
-        guard let tickInterval else { return }
+        guard let tickInterval, phase == .walk else { return }  // the first fix may already have arrived
         ticker = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: tickInterval)
@@ -217,7 +219,7 @@ final class WalkSession {
     }
 
     /// Location is paused when the user turns it off during a real walk (spec §2).
-    private var locationPaused: Bool {
+    var locationPaused: Bool {
         engine?.session.demo == false && location.access == .denied
     }
 
@@ -225,15 +227,16 @@ final class WalkSession {
     /// update (with an alert when the status changed while the app was in the background), and the
     /// saved walk for resuming. Runs on every fix and once a second.
     func tick() {
-        guard phase == .walk, let session = engine?.session, let metrics = engine?.metrics(now: clock()) else { return }
+        guard phase == .walk, let session = engine?.session, let fixAt = engine?.lastFix?.timestamp,
+              let metrics = engine?.metrics(now: clock()) else { return }
         self.metrics = metrics
         let decision = alerts.update(
-            metrics, units: saved.units, locationPaused: locationPaused, now: clock(), appActive: appActive,
-            hapticsOn: saved.settings.phoneHaptics)
+            metrics, fixAt: fixAt, units: saved.units, locationPaused: locationPaused, now: clock(),
+            appActive: appActive, hapticsOn: saved.settings.phoneHaptics)
         if let haptic = decision.haptic { feedback.play(haptic) }
         if let state = decision.activity {
             if metrics.arrived {
-                liveActivity.end(state, dismissAfter: Self.arrivedActivitySec)
+                liveActivity.end(state, for: session, dismissAfter: Self.arrivedActivitySec)
             } else {
                 liveActivity.show(state, for: session, alert: decision.alert)
                 if !session.demo, let engine { saved.activeWalk = ActiveWalk(engine: engine, status: alerts.status) }

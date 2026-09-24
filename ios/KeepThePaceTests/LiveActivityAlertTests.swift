@@ -27,8 +27,8 @@ import Testing
         let launch = Launch()
         await launch.startWalk()
         launch.walk.sceneChanged(.background)
-        launch.clock.advance(31)  // standing still: 31 s behind
-        launch.walk.tick()
+        launch.clock.advance(31)
+        launch.location.send(launch.fix(walked: 0))  // still at the start: 31 s behind
         #expect(launch.activity.shown.last?.alert == .behind)
         #expect(launch.activity.shown.last?.state.status == .behind)
         #expect(launch.feedback.played.isEmpty)
@@ -38,7 +38,7 @@ import Testing
         let launch = Launch()
         await launch.startWalk()
         launch.clock.advance(31)
-        launch.walk.tick()
+        launch.location.send(launch.fix(walked: 0))
         #expect(launch.feedback.played == [.behind])
         #expect(launch.activity.shown.last?.alert == nil)
         #expect(launch.activity.shown.last?.state.status == .behind)
@@ -50,7 +50,7 @@ import Testing
         await launch.startWalk()
         launch.walk.sceneChanged(.background)
         launch.clock.advance(31)
-        launch.walk.tick()
+        launch.location.send(launch.fix(walked: 0))
         #expect(launch.activity.shown.last?.state.status == .behind)
         #expect(launch.activity.shown.last?.alert == nil)
         #expect(launch.feedback.played.isEmpty)
