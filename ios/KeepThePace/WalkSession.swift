@@ -21,6 +21,8 @@ final class WalkSession {
     private(set) var planner = WalkPlanner()
     private(set) var engine: WalkEngine?
     private(set) var metrics: WalkMetrics?
+    /// A walk the app was force-quit during, offered as Resume or End (spec §2).
+    private(set) var pendingResume: ActiveWalk?
 
     let location: any LocationProviding
     let search: PlaceSearchService
@@ -55,6 +57,12 @@ final class WalkSession {
         self.clock = clock
         self.tickInterval = tickInterval
         location.onFix = { [weak self] fix in self?.liveFix(fix) }
+        if let active = saved.activeWalk, active.isResumable(now: clock()) {
+            pendingResume = active
+        } else {
+            saved.activeWalk = nil
+            liveActivity.endAll()
+        }
     }
 
     /// The latest live GPS fix, used as the walk's start point.
@@ -118,7 +126,7 @@ final class WalkSession {
             location.start()
             return
         }
-        begin(session, firstFix: fix)
+        begin(WalkEngine(session: session), status: .onTime, firstFix: fix)
     }
 
     /// A simulated walk to the chosen destination (or the default demo destination), 280 m away.
@@ -134,29 +142,50 @@ final class WalkSession {
         let source = DemoLocationSource(start: start, dest: dest.coordinate, now: now)
         source.onFix = { [weak self] fix in self?.walkFix(fix) }
         demo = source
-        begin(session, firstFix: nil)
+        begin(WalkEngine(session: session), status: .onTime, firstFix: nil)
         source.start()
+    }
+
+    /// Picks up the walk the app was force-quit during.
+    func resume() {
+        guard let active = pendingResume else { return }
+        pendingResume = nil
+        location.start()
+        begin(active.engine, status: active.status, firstFix: nil)
+    }
+
+    /// Ends the walk the app was force-quit during, without resuming it.
+    func discardResume() {
+        pendingResume = nil
+        saved.activeWalk = nil
+        liveActivity.endAll()
     }
 
     /// Ends the walk (End) or leaves the arrived screen (Done).
     func finish() {
         if phase == .walk { liveActivity.end(nil, dismissAfter: nil) }
         stopWalk()
+        saved.activeWalk = nil
         engine = nil
         metrics = nil
         phase = .setup
         if location.access == .allowed { location.start() }
     }
 
-    private func begin(_ session: Session, firstFix: GPSFix?) {
+    private func begin(_ engine: WalkEngine, status: PaceStatus, firstFix: GPSFix?) {
+        if pendingResume != nil { discardResume() }
         walkID += 1
         refreshingRoute = false
-        engine = WalkEngine(session: session)
-        alerts = WalkAlerts(thresholdSec: saved.settings.alertThreshold.seconds)
-        saved.recents.record(session.dest)
+        self.engine = engine
+        alerts = WalkAlerts(thresholdSec: saved.settings.alertThreshold.seconds, status: status)
+        saved.recents.record(engine.session.dest)
         phase = .walk
-        if !session.demo { location.setBackgroundTracking(true) }
-        if let firstFix { walkFix(firstFix) }
+        if !engine.session.demo { location.setBackgroundTracking(true) }
+        if let firstFix {
+            walkFix(firstFix)
+        } else {
+            tick()
+        }
         guard let tickInterval else { return }
         ticker = Task { [weak self] in
             while !Task.isCancelled {
@@ -192,9 +221,9 @@ final class WalkSession {
         engine?.session.demo == false && location.access == .denied
     }
 
-    /// Recomputes the walk's numbers and applies `WalkAlerts`' decision: a haptic, or a Live Activity
-    /// update (with an alert when the status changed while the app was in the background). Runs on
-    /// every fix and once a second.
+    /// Recomputes the walk's numbers and applies `WalkAlerts`' decision: a haptic, a Live Activity
+    /// update (with an alert when the status changed while the app was in the background), and the
+    /// saved walk for resuming. Runs on every fix and once a second.
     func tick() {
         guard phase == .walk, let session = engine?.session, let metrics = engine?.metrics(now: clock()) else { return }
         self.metrics = metrics
@@ -207,10 +236,12 @@ final class WalkSession {
                 liveActivity.end(state, dismissAfter: Self.arrivedActivitySec)
             } else {
                 liveActivity.show(state, for: session, alert: decision.alert)
+                if !session.demo, let engine { saved.activeWalk = ActiveWalk(engine: engine, status: alerts.status) }
             }
         }
         if metrics.arrived {
             stopWalk()
+            saved.activeWalk = nil
             phase = .arrived
         }
     }

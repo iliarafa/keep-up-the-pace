@@ -2,8 +2,8 @@ import Foundation
 import Observation
 import PaceKit
 
-/// Settings, favorites and recents, kept in the App Group's defaults so the Live Activity
-/// extension can read them later. Every change is saved immediately.
+/// Settings, favorites, recents and the walk in progress, kept in the App Group's defaults so the
+/// Live Activity extension can read them later. Every change is saved immediately.
 @MainActor
 @Observable
 final class SavedData {
@@ -13,6 +13,7 @@ final class SavedData {
         static let settings = "settings.v1"
         static let favorites = "favorites.v1"
         static let recents = "recents.v1"
+        static let activeWalk = "activeWalk.v1"
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -29,11 +30,23 @@ final class SavedData {
         didSet { save(recents, forKey: Key.recents) }
     }
 
+    /// The real walk in progress, so it can be resumed after a force-quit; nil when none is running.
+    @ObservationIgnored var activeWalk: ActiveWalk? {
+        didSet {
+            if let activeWalk {
+                save(activeWalk, forKey: Key.activeWalk)
+            } else {
+                defaults.removeObject(forKey: Key.activeWalk)
+            }
+        }
+    }
+
     init(defaults: UserDefaults = UserDefaults(suiteName: SavedData.appGroup) ?? .standard) {
         self.defaults = defaults
         settings = Self.load(AppSettings.self, from: defaults, forKey: Key.settings) ?? AppSettings()
         favorites = Self.load(Favorites.self, from: defaults, forKey: Key.favorites) ?? Favorites()
         recents = Self.load(Recents.self, from: defaults, forKey: Key.recents) ?? Recents()
+        activeWalk = Self.load(ActiveWalk.self, from: defaults, forKey: Key.activeWalk)
     }
 
     var units: Units {

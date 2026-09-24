@@ -15,6 +15,9 @@ struct SetupView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
+                if let active = walk.pendingResume {
+                    resumeCard(active)
+                }
                 searchField
                 if searching {
                     resultsList
@@ -231,6 +234,32 @@ struct SetupView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
+    }
+
+    // MARK: Resume
+
+    /// A walk the app was force-quit during (spec §2): resume it or end it.
+    private func resumeCard(_ active: ActiveWalk) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            MetricLabel("Walk in progress")
+            Text(active.engine.session.dest.name)
+                .font(.title3.weight(.medium))
+                .foregroundStyle(Theme.foreground)
+            Text("Arrive by \(Format.clock(active.engine.session.arriveBy))")
+                .font(.subheadline.monospacedDigit())
+                .foregroundStyle(Theme.muted)
+            HStack(spacing: 12) {
+                Button("Resume") { walk.resume() }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .accessibilityIdentifier("resumeButton")
+                Button("End walk") { walk.discardResume() }
+                    .buttonStyle(OutlineButtonStyle())
+                    .accessibilityIdentifier("endResumedWalkButton")
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 18))
     }
 
     // MARK: Start
