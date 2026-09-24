@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import PaceKit
 
@@ -55,5 +56,19 @@ import Testing
         #expect(m.update(deltaSec: -15) == .behind)
         #expect(m.update(deltaSec: -10) == nil)
         #expect(m.update(deltaSec: -9.9) == .onTime)
+    }
+
+    @Test func resumesFromASavedStatus() {
+        var m = PaceStatusMachine(thresholdSec: 30, status: .behind)
+        #expect(m.update(deltaSec: -40) == nil)   // still behind: nothing new to announce
+        #expect(m.update(deltaSec: -20) == .onTime)
+    }
+
+    @Test func roundTripsThroughJSON() throws {
+        var m = PaceStatusMachine(thresholdSec: 15)
+        _ = m.update(deltaSec: 20)
+        let decoded = try JSONDecoder().decode(PaceStatusMachine.self, from: JSONEncoder().encode(m))
+        #expect(decoded == m)
+        #expect(decoded.status == .ahead)
     }
 }

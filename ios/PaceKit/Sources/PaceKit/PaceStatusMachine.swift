@@ -8,14 +8,17 @@ public enum PaceStatus: String, Codable, Sendable {
 /// Buckets the schedule delta into ahead / on time / behind. To leave ahead or behind,
 /// the delta must come back inside the threshold by `recoveryMarginSec`, so hovering at
 /// the edge doesn't flip the status (and buzz the user) over and over.
-public struct PaceStatusMachine: Sendable {
+public struct PaceStatusMachine: Codable, Hashable, Sendable {
     public let thresholdSec: Double
     public let recoveryMarginSec: Double
-    public private(set) var status: PaceStatus = .onTime
+    public private(set) var status: PaceStatus
 
-    public init(thresholdSec: Double = 30, recoveryMarginSec: Double = 5) {
+    /// `status` is where the machine starts: a resumed walk carries on from its saved status, so
+    /// it doesn't buzz again for a change it already announced.
+    public init(thresholdSec: Double = 30, recoveryMarginSec: Double = 5, status: PaceStatus = .onTime) {
         self.thresholdSec = thresholdSec
         self.recoveryMarginSec = recoveryMarginSec
+        self.status = status
     }
 
     /// Feeds a new delta. Returns the new status only when it changed.
