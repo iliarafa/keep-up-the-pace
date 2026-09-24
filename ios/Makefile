@@ -3,7 +3,7 @@ SIM_IPHONE ?= iPhone 17
 SIM_WATCH ?= Apple Watch Series 11 (46mm)
 XCODEBUILD = xcodebuild -project KeepThePace.xcodeproj -derivedDataPath build CODE_SIGNING_ALLOWED=NO -quiet
 
-.PHONY: generate test golden build-ios build-watch
+.PHONY: generate test golden build-ios build-watch test-ui
 
 generate:
 	xcodegen generate
@@ -22,3 +22,8 @@ build-ios: generate
 
 build-watch: generate
 	$(XCODEBUILD) -scheme KeepThePaceWatch -destination 'platform=watchOS Simulator,name=$(SIM_WATCH)' build
+
+# The demo-walk UI test on the iPhone simulator. Takes about 3 minutes. Not -quiet, so the
+# per-test results and "** TEST SUCCEEDED **" are printed.
+test-ui: generate
+	xcodebuild -project KeepThePace.xcodeproj -derivedDataPath build CODE_SIGNING_ALLOWED=NO -scheme KeepThePace -destination 'platform=iOS Simulator,name=$(SIM_IPHONE)' test

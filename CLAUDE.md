@@ -62,6 +62,7 @@ The native iPhone and Apple Watch app is being built in `ios/`. The design is in
 - **Bundle IDs:** the prefix is `com.iliasrafailidis.delta`, the App Group is `group.com.iliasrafailidis.delta` and the team is `3DLV25C9VK`. The bundle ID cannot change once registered; the display name can.
 - **Versions:** set `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` in `project.yml`; all four targets read them, so the extensions and the watch app always match the phone app.
 - **PaceKit** is pure Swift with no UI or Core Location, so all app logic that can be tested lives there. Its formatters use `JSNumber` (`Math.round` and `toFixed` semantics) so the output matches the web app character for character. Don't replace these with `String(format:)`: it rounds ties differently.
+- **The iPhone app** (`ios/KeepThePace/`): `WalkSession` runs setup → walk → arrived by wiring PaceKit's `WalkPlanner`, `Session.begin` and `WalkEngine` to `LocationService` (foreground GPS through `SpeedEstimator`), `DemoLocationSource`, `RouteService` (MapKit walking distance) and `PlaceSearchService` (MapKit type-ahead). `SavedData` keeps settings, favorites and recents in the App Group's defaults. Put rules in PaceKit, where `swift test` covers them; the app layer only wires and draws.
 - **Golden vectors:** `ios/PaceKit/Scripts/make-golden.mjs` runs the web TypeScript (`src/lib/geo.ts`, `src/lib/format.ts`) and writes `Tests/PaceKitTests/Fixtures/golden.json`. The Swift tests must match it. Regenerate only if the web reference changes intentionally.
 
 Commands (run from `ios/`):
@@ -72,6 +73,7 @@ make test          # PaceKit unit tests (swift test), no simulator needed
 make golden        # regenerate golden.json from the web TypeScript
 make build-ios     # generate + build the iOS app (with embedded watch app) for the simulator
 make build-watch   # generate + build the watch app for the simulator
+make test-ui       # demo-walk UI test on the iPhone simulator (about 3 minutes)
 ```
 
 To run a single test: `cd ios/PaceKit && swift test --filter FormatTests` (a suite) or `--filter FormatTests/deltaMatchesWeb` (one test). Simulator builds pass `CODE_SIGNING_ALLOWED=NO`. On-device runs use Xcode with automatic signing. Makefile simulator builds carry no entitlements, so check App Group or HealthKit behaviour in a build run from Xcode.
