@@ -3,16 +3,19 @@ import Observation
 import PaceKit
 import SwiftUI
 
-/// The app's walk flow: setup → walk → arrived. Planning rules, pace maths and arrival live in
-/// PaceKit (`WalkPlanner`, `Session.begin`, `WalkEngine`); this class wires them to the GPS, the
-/// demo walk, Apple Maps routing and a one-second clock. The GPS, routing and clock can be
-/// replaced by fakes in tests.
+/// The app's walk flow: setup → walk → arrived. Planning, pace maths, arrival and alert rules live
+/// in PaceKit (`WalkPlanner`, `Session.begin`, `WalkEngine`, `WalkAlerts`); this class wires them to
+/// the GPS, the demo walk, Apple Maps routing, the Live Activity, haptics and a one-second clock.
+/// Every one of those can be replaced by a fake in tests.
 @MainActor
 @Observable
 final class WalkSession {
     enum Phase {
         case setup, walk, arrived
     }
+
+    /// How long an arrived walk's Live Activity stays on the lock screen (spec §2).
+    static let arrivedActivitySec: TimeInterval = 4 * 60
 
     private(set) var phase: Phase = .setup
     private(set) var planner = WalkPlanner()
@@ -23,24 +26,32 @@ final class WalkSession {
     let search: PlaceSearchService
     @ObservationIgnored private let routes: any RouteProviding
     @ObservationIgnored private let saved: SavedData
+    @ObservationIgnored private let liveActivity: any LiveActivityControlling
+    @ObservationIgnored private let feedback: any FeedbackPlaying
     @ObservationIgnored private let clock: () -> Date
     @ObservationIgnored private let tickInterval: Duration?
     @ObservationIgnored private var demo: DemoLocationSource?
     @ObservationIgnored private var ticker: Task<Void, Never>?
     @ObservationIgnored private var walkID = 0
     @ObservationIgnored private var refreshingRoute = false
+    @ObservationIgnored private var alerts = WalkAlerts(thresholdSec: AlertThreshold.thirty.seconds)
+    @ObservationIgnored private var appActive = true
 
     /// `clock` and `tickInterval` exist for tests: a test passes its own clock and a nil interval,
     /// and calls `tick()` itself.
     init(
         saved: SavedData, location: any LocationProviding = LocationService(),
         search: PlaceSearchService = PlaceSearchService(), routes: any RouteProviding = RouteService(),
-        clock: @escaping () -> Date = { .now }, tickInterval: Duration? = .seconds(1)
+        liveActivity: any LiveActivityControlling = LiveActivityController(),
+        feedback: any FeedbackPlaying = FeedbackController(), clock: @escaping () -> Date = { .now },
+        tickInterval: Duration? = .seconds(1)
     ) {
         self.saved = saved
         self.location = location
         self.search = search
         self.routes = routes
+        self.liveActivity = liveActivity
+        self.feedback = feedback
         self.clock = clock
         self.tickInterval = tickInterval
         location.onFix = { [weak self] fix in self?.liveFix(fix) }
@@ -65,9 +76,10 @@ final class WalkSession {
         location.start()
     }
 
-    /// The app moved to or from the foreground. In setup, GPS stops in the background, so an old
-    /// fix is never a walk's start point.
+    /// The app moved to or from the foreground. Status changes buzz in the app only while it is
+    /// active. In setup, GPS stops in the background, so an old fix is never a walk's start point.
     func sceneChanged(_ scene: ScenePhase) {
+        appActive = scene == .active
         guard phase == .setup else { return }
         switch scene {
         case .background: location.stop()
@@ -128,6 +140,7 @@ final class WalkSession {
 
     /// Ends the walk (End) or leaves the arrived screen (Done).
     func finish() {
+        if phase == .walk { liveActivity.end(nil, dismissAfter: nil) }
         stopWalk()
         engine = nil
         metrics = nil
@@ -139,6 +152,7 @@ final class WalkSession {
         walkID += 1
         refreshingRoute = false
         engine = WalkEngine(session: session)
+        alerts = WalkAlerts(thresholdSec: saved.settings.alertThreshold.seconds)
         saved.recents.record(session.dest)
         phase = .walk
         if !session.demo { location.setBackgroundTracking(true) }
@@ -173,11 +187,29 @@ final class WalkSession {
         tick()
     }
 
-    /// Recomputes the walk's numbers. Runs on every fix and once a second.
+    /// Location is paused when the user turns it off during a real walk (spec §2).
+    private var locationPaused: Bool {
+        engine?.session.demo == false && location.access == .denied
+    }
+
+    /// Recomputes the walk's numbers and applies `WalkAlerts`' decision: a haptic, or a Live Activity
+    /// update (with an alert when the status changed while the app was in the background). Runs on
+    /// every fix and once a second.
     func tick() {
-        guard phase == .walk else { return }
-        metrics = engine?.metrics(now: clock())
-        if metrics?.arrived == true {
+        guard phase == .walk, let session = engine?.session, let metrics = engine?.metrics(now: clock()) else { return }
+        self.metrics = metrics
+        let decision = alerts.update(
+            metrics, units: saved.units, locationPaused: locationPaused, now: clock(), appActive: appActive,
+            hapticsOn: saved.settings.phoneHaptics)
+        if let haptic = decision.haptic { feedback.play(haptic) }
+        if let state = decision.activity {
+            if metrics.arrived {
+                liveActivity.end(state, dismissAfter: Self.arrivedActivitySec)
+            } else {
+                liveActivity.show(state, for: session, alert: decision.alert)
+            }
+        }
+        if metrics.arrived {
             stopWalk()
             phase = .arrived
         }

@@ -22,6 +22,8 @@ struct Launch {
     let saved: SavedData
     let location = FakeLocation()
     let routes = FakeRoutes()
+    let activity = FakeLiveActivity()
+    let feedback = FakeFeedback()
     let walk: WalkSession
 
     /// Each launch gets empty storage of its own. Pass an earlier launch's `defaults` and `clock`
@@ -32,7 +34,8 @@ struct Launch {
         self.defaults = defaults
         saved = SavedData(defaults: defaults)
         walk = WalkSession(
-            saved: saved, location: location, routes: routes, clock: { [clock] in clock.now }, tickInterval: nil)
+            saved: saved, location: location, routes: routes, liveActivity: activity, feedback: feedback,
+            clock: { [clock] in clock.now }, tickInterval: nil)
     }
 
     /// A GPS reading `metres` along the test walk, stamped now.

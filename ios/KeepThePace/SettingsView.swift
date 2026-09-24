@@ -20,6 +20,21 @@ struct SettingsView: View {
             }
             .listRowBackground(Theme.surface)
 
+            Section {
+                Picker("Alert threshold", selection: $saved.settings.alertThreshold) {
+                    ForEach(AlertThreshold.allCases, id: \.self) { threshold in
+                        Text("\(threshold.rawValue) s").tag(threshold)
+                    }
+                }
+                .pickerStyle(.segmented)
+                Toggle("iPhone haptics", isOn: $saved.settings.phoneHaptics)
+            } header: {
+                Text("Alerts")
+            } footer: {
+                Text("Buzz when you fall this far behind or get this far ahead, and when you're back on pace. With the phone locked, the buzz comes from the Live Activity.")
+            }
+            .listRowBackground(Theme.surface)
+
             Section("About") {
                 LabeledContent("Version", value: Self.version)
                 Text("Keep the Pace tells you how many seconds ahead of or behind schedule you are on the way to a place.")
