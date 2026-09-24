@@ -59,8 +59,13 @@ final class WalkSession {
     func choose(_ place: Place) {
         let from = origin?.coordinate
         guard let planID = planner.choose(place, from: from, now: .now), let from else { return }
+        routePlan(planID, from: from, to: place.coordinate)
+    }
+
+    /// Upgrades the plan to the walking-route distance when Apple Maps answers.
+    private func routePlan(_ planID: Int, from: LatLon, to: LatLon) {
         Task {
-            let distance = await routes.walkingDistanceM(from: from, to: place.coordinate)
+            let distance = await routes.walkingDistanceM(from: from, to: to)
             planner.routeResolved(planID: planID, distanceM: distance, now: .now)
         }
     }
@@ -77,13 +82,10 @@ final class WalkSession {
     // MARK: Walking
 
     func startWalking() {
-        guard let dest = planner.destination, let arriveBy = planner.arriveBy, let fix = origin else {
+        guard let fix = origin, let session = planner.beginSession(from: fix.coordinate, now: .now) else {
             location.start()
             return
         }
-        let session = Session.begin(
-            dest: dest, from: fix.coordinate, plannedDistanceM: planner.plannedDistanceM, arriveBy: arriveBy,
-            now: .now, demo: false, routed: planner.plannedFromRoute)
         begin(session, firstFix: fix)
     }
 
@@ -129,9 +131,19 @@ final class WalkSession {
     }
 
     private func liveFix(_ fix: GPSFix) {
-        guard phase == .walk, engine?.session.demo == false else { return }
-        walkFix(fix)
-        refreshRouteIfDue()
+        switch phase {
+        case .setup:
+            // A place picked before the first fix is planned from here.
+            if let planID = planner.originFound(fix.coordinate, now: .now), let dest = planner.destination {
+                routePlan(planID, from: fix.coordinate, to: dest.coordinate)
+            }
+        case .walk:
+            guard engine?.session.demo == false else { return }
+            walkFix(fix)
+            refreshRouteIfDue()
+        case .arrived:
+            break
+        }
     }
 
     private func walkFix(_ fix: GPSFix) {

@@ -5,6 +5,7 @@ import XCTest
 final class DemoWalkUITests: XCTestCase {
     @MainActor
     func testDemoWalkArrivesEarlyAndReturnsToSetup() throws {
+        continueAfterFailure = false
         let app = XCUIApplication()
         app.launch()
 

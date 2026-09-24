@@ -60,6 +60,18 @@ import Testing
         #expect(abs(later.walkedM - 985) < 1e-6)
     }
 
+    @Test func routedWalkArrivesOnTheStraightLine() {
+        // The route is 1300 m, so about 315 m of route is "left" at the last fix. Arrival is still
+        // judged on the 15 m straight line (spec §2).
+        var e = WalkEngine(session: session(routed: true, startDistanceM: 1300))
+        e.ingest(fix(metresFromStart: 0, at: now))
+        e.ingest(fix(metresFromStart: 985, at: now + 900))
+        let m = e.metrics(now: now + 900)!
+        #expect(m.arrived)
+        #expect(m.remainingM == 0)
+        #expect(abs(m.deltaSec - 100) < 1e-9)  // arrive-by now+1000, arrived at now+900
+    }
+
     @Test func routeRefreshOnlyForRoutedWalks() {
         var plain = WalkEngine(session: session())
         plain.ingest(fix(metresFromStart: 0, at: now))

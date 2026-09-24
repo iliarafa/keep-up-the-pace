@@ -28,11 +28,13 @@ import Testing
         #expect(p.arriveBy == Geo.roundUpToMinute(now + max(crow, 80) / 1.34))
     }
 
-    @Test func noOriginPlansFallbackDistanceAndNoRoute() {
+    @Test func noOriginLeavesTheDistanceUnknown() {
         var p = WalkPlanner()
-        #expect(p.choose(park, from: nil, now: now) == nil)
-        #expect(p.plannedDistanceM == 1200)
-        #expect(p.arriveBy == Geo.roundUpToMinute(now + 1200 / 1.34))
+        let id = p.choose(park, from: nil, now: now)
+        #expect(id == nil)
+        #expect(p.plannedDistanceM == nil)
+        #expect(!p.plannedFromRoute)
+        #expect(p.arriveBy == Geo.roundUpToMinute(now + 1200 / 1.34))  // the placeholder only sets the time
     }
 
     @Test func shortTripsAreEstimatedAsEightyMetres() {
@@ -102,5 +104,75 @@ import Testing
         _ = p.choose(park, from: origin, now: now)
         #expect(p.canStart(hasLocation: true))
         #expect(!p.canStart(hasLocation: false))
+    }
+
+    @Test func originFoundCompletesAPlanMadeWithoutALocation() {
+        var p = WalkPlanner()
+        _ = p.choose(park, from: nil, now: now)
+        let later = now + 5
+        let id = p.originFound(origin, now: later)
+        let crow = Geo.haversineM(origin, park.coordinate)
+        #expect(id != nil)
+        #expect(p.plannedDistanceM == crow)
+        #expect(!p.plannedFromRoute)
+        #expect(p.arriveBy == WalkPlanner.defaultArriveBy(distanceM: crow, now: later))
+        p.routeResolved(planID: id!, distanceM: 900, now: later + 1)
+        #expect(p.plannedFromRoute)
+        #expect(p.plannedDistanceM == 900)
+    }
+
+    @Test func originFoundKeepsAnEditedTime() {
+        var p = WalkPlanner()
+        _ = p.choose(park, from: nil, now: now)
+        p.bump(minutes: 1, now: now)
+        let edited = p.arriveBy
+        let id = p.originFound(origin, now: now + 5)
+        #expect(id != nil)
+        #expect(p.plannedDistanceM == Geo.haversineM(origin, park.coordinate))
+        #expect(p.arriveBy == edited)
+        p.routeResolved(planID: id!, distanceM: 900, now: now + 6)
+        #expect(!p.plannedFromRoute)  // an edited time keeps the straight-line plan, as for any edited plan
+    }
+
+    @Test func originFoundOnlyCompletesAPlanWithoutADistance() {
+        var empty = WalkPlanner()
+        let none = empty.originFound(origin, now: now)
+        #expect(none == nil)
+        #expect(empty == WalkPlanner())
+        var planned = WalkPlanner()
+        _ = planned.choose(park, from: origin, now: now)
+        let before = planned
+        let again = planned.originFound(LatLon(lat: 40.75, lon: -73.99), now: now + 5)
+        #expect(again == nil)
+        #expect(planned == before)
+    }
+
+    @Test func beginSessionRemeasuresAStraightLinePlanFromTheStartPoint() {
+        let start = Geo.destinationPoint(from: park.coordinate, bearingDeg: 180, distanceM: 300)
+        // Picked before the first fix: the 1200 m placeholder must not become the start distance.
+        var early = WalkPlanner()
+        _ = early.choose(park, from: nil, now: now)
+        let s1 = early.beginSession(from: start, now: now + 10)!
+        #expect(abs(s1.startDistanceM - 300) < 1e-6)
+        #expect(!s1.routed)
+        #expect(s1.start == start)
+        #expect(s1.arriveBy == early.arriveBy)
+        // Picked about 515 m away, started 300 m away: measured from where Start was pressed.
+        var moved = WalkPlanner()
+        _ = moved.choose(park, from: origin, now: now)
+        let s2 = moved.beginSession(from: start, now: now + 10)!
+        #expect(s2.startDistanceM == Geo.haversineM(start, park.coordinate))
+    }
+
+    @Test func beginSessionKeepsARoutedPlansDistance() {
+        #expect(WalkPlanner().beginSession(from: origin, now: now) == nil)  // nothing planned yet
+        var p = WalkPlanner()
+        let id = p.choose(park, from: origin, now: now)!
+        p.routeResolved(planID: id, distanceM: 1300, now: now)
+        let start = Geo.destinationPoint(from: park.coordinate, bearingDeg: 180, distanceM: 300)
+        let s = p.beginSession(from: start, now: now + 10)!
+        #expect(s.startDistanceM == 1300)
+        #expect(s.routed)
+        #expect(s.start == start)
     }
 }
