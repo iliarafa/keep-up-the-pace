@@ -138,7 +138,7 @@ The visual language carries over from the web app: a dark background; the tokens
    - Start, with the tracking device shown underneath.
    - A Demo link.
    - Long-pressing a result or the destination card stars it as a favorite.
-3. **Walk:** the destination and "X left · arrive-by time" at the top. Below that, a huge ±m:ss in the pace colour with an "early", "late" or "on time" label, then distance left, the heading arrow with its compass direction, speed and End. A small line says "Tracking on Apple Watch" or "Tracking on iPhone".
+3. **Walk:** the web app's layout. At the top, the destination with "X left · arrive-by time", and End on the right. Below that, the heading arrow with its compass direction, then speed. The huge ±m:ss in the pace colour sits at the bottom with its "early", "late" or "on time" label, and under it a small line says "Tracking on Apple Watch" or "Tracking on iPhone".
 4. **Arrived:** the result, target versus actual arrival time, distance, duration, a "Saved to Health" confirmation, Done, and "☆ Favorite this place" if it isn't one yet.
 5. **Favorites:** reorder, delete, and set a custom label.
 6. **Settings:**
