@@ -6,12 +6,8 @@ import PaceKit
 /// inaccurate and stale ones and smooths the speed. Background updates come in M3.
 @MainActor
 @Observable
-final class LocationService: NSObject, FixSource, CLLocationManagerDelegate {
-    enum Access {
-        case notDetermined, allowed, denied
-    }
-
-    private(set) var access: Access = .notDetermined
+final class LocationService: NSObject, LocationProviding, CLLocationManagerDelegate {
+    private(set) var access: LocationAccess = .notDetermined
     /// The latest accepted fix, or nil until one arrives.
     private(set) var latestFix: GPSFix?
     @ObservationIgnored var onFix: ((GPSFix) -> Void)?
@@ -81,7 +77,7 @@ final class LocationService: NSObject, FixSource, CLLocationManagerDelegate {
         onFix?(fix)
     }
 
-    private static func access(for status: CLAuthorizationStatus) -> Access {
+    private static func access(for status: CLAuthorizationStatus) -> LocationAccess {
         switch status {
         case .notDetermined: .notDetermined
         case .authorizedWhenInUse, .authorizedAlways: .allowed

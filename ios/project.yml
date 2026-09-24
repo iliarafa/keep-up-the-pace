@@ -48,6 +48,16 @@ targets:
         com.apple.security.application-groups: [group.com.iliasrafailidis.delta]
         com.apple.developer.healthkit: true
         com.apple.developer.healthkit.access: []
+  KeepThePaceTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [KeepThePaceTests]
+    dependencies:
+      - target: KeepThePace
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.iliasrafailidis.delta.tests
+        TARGETED_DEVICE_FAMILY: "1"
   KeepThePaceUITests:
     type: bundle.ui-testing
     platform: iOS
@@ -144,6 +154,7 @@ schemes:
     test:
       config: Debug
       targets:
+        - KeepThePaceTests
         - KeepThePaceUITests
   KeepThePaceWatch:
     build:

@@ -4,7 +4,8 @@ import PaceKit
 
 /// The app's walk flow: setup → walk → arrived. Planning rules, pace maths and arrival live in
 /// PaceKit (`WalkPlanner`, `Session.begin`, `WalkEngine`); this class wires them to the GPS, the
-/// demo walk, Apple Maps routing and a one-second clock.
+/// demo walk, Apple Maps routing and a one-second clock. The GPS, routing and clock can be
+/// replaced by fakes in tests.
 @MainActor
 @Observable
 final class WalkSession {
@@ -17,23 +18,30 @@ final class WalkSession {
     private(set) var engine: WalkEngine?
     private(set) var metrics: WalkMetrics?
 
-    let location: LocationService
+    let location: any LocationProviding
     let search: PlaceSearchService
-    @ObservationIgnored private let routes: RouteService
+    @ObservationIgnored private let routes: any RouteProviding
     @ObservationIgnored private let saved: SavedData
+    @ObservationIgnored private let clock: () -> Date
+    @ObservationIgnored private let tickInterval: Duration?
     @ObservationIgnored private var demo: DemoLocationSource?
     @ObservationIgnored private var ticker: Task<Void, Never>?
     @ObservationIgnored private var walkID = 0
     @ObservationIgnored private var refreshingRoute = false
 
+    /// `clock` and `tickInterval` exist for tests: a test passes its own clock and a nil interval,
+    /// and calls `tick()` itself.
     init(
-        saved: SavedData, location: LocationService = LocationService(),
-        search: PlaceSearchService = PlaceSearchService(), routes: RouteService = RouteService()
+        saved: SavedData, location: any LocationProviding = LocationService(),
+        search: PlaceSearchService = PlaceSearchService(), routes: any RouteProviding = RouteService(),
+        clock: @escaping () -> Date = { .now }, tickInterval: Duration? = .seconds(1)
     ) {
         self.saved = saved
         self.location = location
         self.search = search
         self.routes = routes
+        self.clock = clock
+        self.tickInterval = tickInterval
         location.onFix = { [weak self] fix in self?.liveFix(fix) }
     }
 
@@ -58,7 +66,7 @@ final class WalkSession {
 
     func choose(_ place: Place) {
         let from = origin?.coordinate
-        guard let planID = planner.choose(place, from: from, now: .now), let from else { return }
+        guard let planID = planner.choose(place, from: from, now: clock()), let from else { return }
         routePlan(planID, from: from, to: place.coordinate)
     }
 
@@ -66,23 +74,23 @@ final class WalkSession {
     private func routePlan(_ planID: Int, from: LatLon, to: LatLon) {
         Task {
             let distance = await routes.walkingDistanceM(from: from, to: to)
-            planner.routeResolved(planID: planID, distanceM: distance, now: .now)
+            planner.routeResolved(planID: planID, distanceM: distance, now: clock())
         }
     }
 
     func bumpArriveBy(minutes: Int) {
-        planner.bump(minutes: minutes, now: .now)
+        planner.bump(minutes: minutes, now: clock())
     }
 
     func setArriveBy(_ picked: Date) {
         let parts = Calendar.current.dateComponents([.hour, .minute], from: picked)
-        planner.setArriveBy(hour: parts.hour ?? 0, minute: parts.minute ?? 0, now: .now, calendar: .current)
+        planner.setArriveBy(hour: parts.hour ?? 0, minute: parts.minute ?? 0, now: clock(), calendar: .current)
     }
 
     // MARK: Walking
 
     func startWalking() {
-        guard let fix = origin, let session = planner.beginSession(from: fix.coordinate, now: .now) else {
+        guard let fix = origin, let session = planner.beginSession(from: fix.coordinate, now: clock()) else {
             location.start()
             return
         }
@@ -93,7 +101,7 @@ final class WalkSession {
     func startDemo() {
         let dest = planner.destination ?? DemoWalk.defaultDestination
         let start = DemoWalk.startPoint(for: dest.coordinate)
-        let now = Date.now
+        let now = clock()
         let session = Session.begin(
             dest: dest, from: start, plannedDistanceM: nil,
             arriveBy: DemoWalk.arriveBy(start: start, dest: dest.coordinate, now: now),
@@ -122,10 +130,11 @@ final class WalkSession {
         saved.recents.record(session.dest)
         phase = .walk
         if let firstFix { walkFix(firstFix) }
+        guard let tickInterval else { return }
         ticker = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(1))
-                self?.refreshMetrics()
+                try? await Task.sleep(for: tickInterval)
+                self?.tick()
             }
         }
     }
@@ -134,7 +143,7 @@ final class WalkSession {
         switch phase {
         case .setup:
             // A place picked before the first fix is planned from here.
-            if let planID = planner.originFound(fix.coordinate, now: .now), let dest = planner.destination {
+            if let planID = planner.originFound(fix.coordinate, now: clock()), let dest = planner.destination {
                 routePlan(planID, from: fix.coordinate, to: dest.coordinate)
             }
         case .walk:
@@ -148,12 +157,13 @@ final class WalkSession {
 
     private func walkFix(_ fix: GPSFix) {
         engine?.ingest(fix)
-        refreshMetrics()
+        tick()
     }
 
-    private func refreshMetrics() {
+    /// Recomputes the walk's numbers. Runs on every fix and once a second.
+    func tick() {
         guard phase == .walk else { return }
-        metrics = engine?.metrics(now: .now)
+        metrics = engine?.metrics(now: clock())
         if metrics?.arrived == true {
             stopWalk()
             phase = .arrived
@@ -161,7 +171,7 @@ final class WalkSession {
     }
 
     private func refreshRouteIfDue() {
-        guard !refreshingRoute, let engine, engine.needsRouteRefresh(now: .now), let from = engine.lastFix else { return }
+        guard !refreshingRoute, let engine, engine.needsRouteRefresh(now: clock()), let from = engine.lastFix else { return }
         refreshingRoute = true
         let id = walkID
         let to = engine.session.dest.coordinate
@@ -169,9 +179,9 @@ final class WalkSession {
             let distance = await routes.walkingDistanceM(from: from.coordinate, to: to)
             guard id == walkID else { return }
             if let distance {
-                self.engine?.routeRefreshed(distanceM: distance, now: .now)
+                self.engine?.routeRefreshed(distanceM: distance, now: clock())
             } else {
-                self.engine?.routeRefreshFailed(now: .now)
+                self.engine?.routeRefreshFailed(now: clock())
             }
             refreshingRoute = false
         }

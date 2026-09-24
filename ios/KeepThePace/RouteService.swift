@@ -18,3 +18,5 @@ struct RouteService {
         }
     }
 }
+
+extension RouteService: RouteProviding {}
