@@ -58,11 +58,11 @@ TanStack Start + React 19 + Tailwind v4. There is one route (`src/routes/index.t
 The native iPhone and Apple Watch app is being built in `ios/`. The design is in `docs/superpowers/specs/2026-09-22-ios-watch-app-design.md`. The web app in `src/` is the **reference implementation** for the pace math and formatting; it is not part of the iOS build.
 
 - **The project is generated.** `ios/project.yml` (XcodeGen) is the source of truth. `KeepThePace.xcodeproj`, the `Info.plist` files and the `.entitlements` files are generated and gitignored. Change targets, capabilities, Info keys and build settings in `project.yml`, never in Xcode's settings panes; those edits are lost at the next generate.
-- **Targets:** `KeepThePace` (iOS app), `PaceActivity` (Live Activity extension), `KeepThePaceWatch` (watchOS app, embedded in the iOS app) and `PaceComplication` (watch widget extension) all depend on the local package `ios/PaceKit`. `KeepThePaceUITests` holds the demo-walk UI test that `make test-ui` runs.
+- **Targets:** `KeepThePace` (iOS app), `PaceActivity` (Live Activity extension), `KeepThePaceWatch` (watchOS app, embedded in the iOS app) and `PaceComplication` (watch widget extension) all depend on the local package `ios/PaceKit`. `KeepThePaceTests` holds the app's unit tests (`make test-app`) and `KeepThePaceUITests` the demo-walk UI test (`make test-ui`). `ios/Shared/` is compiled into both `KeepThePace` and `PaceActivity`: the theme and the Live Activity's `PaceActivityAttributes`.
 - **Bundle IDs:** the prefix is `com.iliasrafailidis.delta`, the App Group is `group.com.iliasrafailidis.delta` and the team is `3DLV25C9VK`. The bundle ID cannot change once registered; the display name can.
 - **Versions:** set `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` in `project.yml`; all four targets read them, so the extensions and the watch app always match the phone app.
 - **PaceKit** is pure Swift with no UI or Core Location, so all app logic that can be tested lives there. Its formatters use `JSNumber` (`Math.round` and `toFixed` semantics) so the output matches the web app character for character. Don't replace these with `String(format:)`: it rounds ties differently.
-- **The iPhone app** (`ios/KeepThePace/`): `WalkSession` runs setup → walk → arrived by wiring PaceKit's `WalkPlanner`, `Session.begin` and `WalkEngine` to `LocationService` (foreground GPS through `SpeedEstimator`), `DemoLocationSource`, `RouteService` (MapKit walking distance) and `PlaceSearchService` (MapKit type-ahead). `SavedData` keeps settings, favorites and recents in the App Group's defaults. Put rules in PaceKit, where `swift test` covers them; the app layer only wires and draws.
+- **The iPhone app** (`ios/KeepThePace/`): `WalkSession` runs setup → walk → arrived by wiring PaceKit's `WalkPlanner`, `Session.begin`, `WalkEngine` and `WalkAlerts` to the services behind the protocols in `WalkServices.swift`: `LocationService` (GPS through `SpeedEstimator`, kept running in the background during walks), `RouteService` (MapKit walking distance), `LiveActivityController` (ActivityKit) and `FeedbackController` (Core Haptics). `DemoLocationSource` drives demo walks and `PlaceSearchService` the MapKit type-ahead. `SavedData` keeps settings, favorites, recents and the walk in progress (for Resume after a force-quit) in the App Group's defaults. `KeepThePaceTests` drives `WalkSession` with fakes. Put rules in PaceKit, where `swift test` covers them; the app layer only wires and draws.
 - **Golden vectors:** `ios/PaceKit/Scripts/make-golden.mjs` runs the web TypeScript (`src/lib/geo.ts`, `src/lib/format.ts`) and writes `Tests/PaceKitTests/Fixtures/golden.json`. The Swift tests must match it. Regenerate only if the web reference changes intentionally.
 
 Commands (run from `ios/`):
@@ -73,7 +73,12 @@ make test          # PaceKit unit tests (swift test), no simulator needed
 make golden        # regenerate golden.json from the web TypeScript
 make build-ios     # generate + build the iOS app (with embedded watch app) for the simulator
 make build-watch   # generate + build the watch app for the simulator
+make test-app      # app unit tests: WalkSession with fake GPS, routing, Live Activity and haptics
 make test-ui       # demo-walk UI test on the iPhone simulator (about 3 minutes)
+make sim-start     # put the booted simulator's GPS near Grand Central, about 500 m from Bryant Park
+make sim-walk      # walk it to Bryant Park at SIM_SPEED m/s (default 1.4; 0.6 falls behind, 3 gets ahead)
 ```
 
 To run a single test: `cd ios/PaceKit && swift test --filter FormatTests` (a suite) or `--filter FormatTests/deltaMatchesWeb` (one test). Simulator builds pass `CODE_SIGNING_ALLOWED=NO`. On-device runs use Xcode with automatic signing. Makefile simulator builds carry no entitlements, so check App Group or HealthKit behaviour in a build run from Xcode.
+
+The simulator shows the Live Activity and runs background location: use `make sim-start` and `make sim-walk`, and lock it with Device › Lock. It has no haptics, though, so judge alerts and haptics on a real iPhone with `docs/checklists/m3-device-walk.md`.
