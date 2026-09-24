@@ -50,7 +50,7 @@ Note the time and what you saw. With the phone connected to the Mac:
 
 You'll see three kinds of line:
 - "Status alert: …" for each alert the app sent.
-- "Dropped a stale reading" or "Dropped an inaccurate reading" for each GPS reading it ignored.
+- "Dropped reading (stale)" or "Dropped reading (inaccurate)" for each GPS reading it ignored.
 - "No walking route: …" when Apple Maps couldn't route, so the distance fell back to the straight line.
 
 Many stale drops while you walk mean the 1 s stale-fix limit (spec §1) needs tuning.

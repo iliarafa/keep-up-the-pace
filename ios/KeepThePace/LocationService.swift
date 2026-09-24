@@ -98,7 +98,7 @@ final class LocationService: NSObject, LocationProviding, CLLocationManagerDeleg
             if let reason = estimator.lastRejection {
                 let age = receivedAt.timeIntervalSince(location.timestamp)
                 log.debug("""
-                    Dropped a \(reason.rawValue, privacy: .public) reading: \
+                    Dropped reading (\(reason.rawValue, privacy: .public)): \
                     accuracy \(location.horizontalAccuracy, format: .fixed(precision: 0)) m, \
                     age \(age, format: .fixed(precision: 1)) s
                     """)
