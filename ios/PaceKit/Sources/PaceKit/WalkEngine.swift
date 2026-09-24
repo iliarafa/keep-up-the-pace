@@ -15,11 +15,13 @@ public struct WalkMetrics: Equatable, Sendable {
 
 /// The per-fix calculation for one walk, shared by the iPhone and the Watch. Feed it every
 /// accepted fix with `ingest(_:)` and ask for `metrics(now:)` whenever the screen needs them.
-public struct WalkEngine: Sendable {
+/// It is Codable so a walk in progress can be saved and resumed after a force-quit.
+public struct WalkEngine: Codable, Equatable, Sendable {
     public let session: Session
     public private(set) var lastFix: GPSFix?
-    public private(set) var walkedM = 0.0
     public private(set) var arrivedAt: Date?
+    private var countedM = 0.0
+    private var gate = DistanceGate()
     private var finalDeltaSec: Double?
     private var route: RouteTracker?
 
@@ -34,10 +36,15 @@ public struct WalkEngine: Sendable {
 
     public var arrived: Bool { arrivedAt != nil }
 
+    /// Distance walked so far, GPS wander excluded.
+    public var walkedM: Double {
+        countedM + (lastFix.map { gate.pendingM(to: $0.coordinate) } ?? 0)
+    }
+
     public mutating func ingest(_ fix: GPSFix) {
         guard !arrived else { return }
-        if let lastFix { walkedM += Geo.haversineM(lastFix.coordinate, fix.coordinate) }
-        route?.advance(to: fix.coordinate)
+        countedM += gate.step(to: fix.coordinate, accuracyM: fix.accuracyM)
+        route?.advance(to: fix.coordinate, accuracyM: fix.accuracyM)
         lastFix = fix
     }
 
@@ -68,10 +75,14 @@ public struct WalkEngine: Sendable {
         return route.needsRefresh(straightLineM: straightLineM(from: lastFix), now: now)
     }
 
-    public mutating func routeRefreshed(distanceM: Double, now: Date) {
+    /// A route refresh came back. `origin` is where it was requested from; you may have walked on
+    /// while it was in flight, so that stretch comes off the new distance.
+    public mutating func routeRefreshed(distanceM: Double, from origin: LatLon, now: Date) {
         guard let lastFix else { return }
         let straight = straightLineM(from: lastFix)
-        route?.refreshed(routeM: distanceM, at: lastFix.coordinate, straightLineM: straight, now: now)
+        let sinceRequest = Geo.haversineM(origin, lastFix.coordinate)
+        route?.refreshed(
+            routeM: max(0, distanceM - sinceRequest), at: lastFix.coordinate, straightLineM: straight, now: now)
     }
 
     public mutating func routeRefreshFailed(now: Date) {

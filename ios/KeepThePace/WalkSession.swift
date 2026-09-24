@@ -179,7 +179,7 @@ final class WalkSession {
             let distance = await routes.walkingDistanceM(from: from.coordinate, to: to)
             guard id == walkID else { return }
             if let distance {
-                self.engine?.routeRefreshed(distanceM: distance, now: clock())
+                self.engine?.routeRefreshed(distanceM: distance, from: from.coordinate, now: clock())
             } else {
                 self.engine?.routeRefreshFailed(now: clock())
             }

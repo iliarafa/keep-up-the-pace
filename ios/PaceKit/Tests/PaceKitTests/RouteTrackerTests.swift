@@ -59,4 +59,12 @@ import Testing
         #expect(!t.needsRefresh(straightLineM: 640, now: now + 30))
         #expect(t.needsRefresh(straightLineM: 640, now: now + 65))
     }
+
+    @Test func gpsWanderDoesNotEatTheRoute() {
+        var t = tracker()
+        for i in 0..<50 {
+            t.advance(to: Geo.destinationPoint(from: start, bearingDeg: i.isMultiple(of: 2) ? 0 : 180, distanceM: 3), accuracyM: 5)
+        }
+        #expect(t.remainingM(straightLineM: 600) >= 900 - 6.001)
+    }
 }

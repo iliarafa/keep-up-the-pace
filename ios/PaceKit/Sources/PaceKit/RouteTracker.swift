@@ -2,28 +2,34 @@ import Foundation
 
 /// Distance left along a walking route between route refreshes, and when to refresh.
 ///
-/// Between refreshes the last route distance is reduced by how far you have moved. A refresh is
-/// due every 60 s, or sooner when your straight-line distance to the destination has drifted more
-/// than 75 m from what the last refresh predicted (you went off the route).
-public struct RouteTracker: Equatable, Sendable {
+/// Between refreshes the last route distance is reduced by how far you have moved (GPS wander
+/// excluded, see `DistanceGate`). A refresh is due every 60 s, or sooner when your straight-line
+/// distance to the destination has drifted more than 75 m from what the last refresh predicted
+/// (you went off the route).
+public struct RouteTracker: Codable, Hashable, Sendable {
     public static let refreshIntervalSec: TimeInterval = 60
     public static let driftLimitM = 75.0
 
     public private(set) var routeM: Double
-    private var movedM = 0.0
+    private var countedM = 0.0
+    private var gate: DistanceGate
     private var lastPoint: LatLon
     private var straightLineAtRefreshM: Double
     private var refreshedAt: Date
 
     public init(routeM: Double, at point: LatLon, straightLineM: Double, now: Date) {
         self.routeM = routeM
+        gate = DistanceGate(anchor: point)
         lastPoint = point
         straightLineAtRefreshM = straightLineM
         refreshedAt = now
     }
 
-    public mutating func advance(to point: LatLon) {
-        movedM += Geo.haversineM(lastPoint, point)
+    /// How far you have moved since the last refresh.
+    public var movedM: Double { countedM + gate.pendingM(to: lastPoint) }
+
+    public mutating func advance(to point: LatLon, accuracyM: Double? = nil) {
+        countedM += gate.step(to: point, accuracyM: accuracyM)
         lastPoint = point
     }
 

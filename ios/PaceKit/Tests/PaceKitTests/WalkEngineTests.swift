@@ -81,10 +81,36 @@ import Testing
         routed.ingest(fix(metresFromStart: 0, at: now))
         #expect(!routed.needsRouteRefresh(now: now + 30))
         #expect(routed.needsRouteRefresh(now: now + 60))
-        routed.routeRefreshed(distanceM: 1250, now: now + 60)
+        routed.routeRefreshed(distanceM: 1250, from: start, now: now + 60)
         #expect(!routed.needsRouteRefresh(now: now + 90))
         #expect(abs(routed.metrics(now: now + 90)!.remainingM - 1250) < 1e-6)
         routed.routeRefreshFailed(now: now + 150)
         #expect(!routed.needsRouteRefresh(now: now + 180))
+    }
+
+    @Test func standingStillAddsNoDistance() {
+        var e = WalkEngine(session: session())
+        for i in 0..<60 {
+            let spot = Geo.destinationPoint(from: start, bearingDeg: i.isMultiple(of: 2) ? 90 : 270, distanceM: 3)
+            e.ingest(GPSFix(coordinate: spot, speedMps: 0, accuracyM: 5, timestamp: now + Double(i)))
+        }
+        #expect(e.walkedM <= 6.001)
+    }
+
+    @Test func routeRefreshTakesOffWhatYouWalkedWhileItWasInFlight() {
+        var e = WalkEngine(session: session(routed: true, startDistanceM: 1300))
+        e.ingest(fix(metresFromStart: 0, at: now))
+        e.ingest(fix(metresFromStart: 100, at: now + 60))  // walked on while the request was out
+        e.routeRefreshed(distanceM: 1250, from: start, now: now + 61)
+        #expect(abs(e.metrics(now: now + 61)!.remainingM - 1150) < 1e-6)
+    }
+
+    @Test func engineRoundTripsThroughJSON() throws {
+        var e = WalkEngine(session: session(routed: true, startDistanceM: 1300))
+        e.ingest(fix(metresFromStart: 0, at: now))
+        e.ingest(fix(metresFromStart: 240, at: now + 200))
+        var decoded = try JSONDecoder().decode(WalkEngine.self, from: JSONEncoder().encode(e))
+        #expect(decoded == e)
+        #expect(decoded.metrics(now: now + 210) == e.metrics(now: now + 210))
     }
 }
