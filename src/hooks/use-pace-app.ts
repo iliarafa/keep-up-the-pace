@@ -12,12 +12,16 @@ import { detectUnits, parseTimeInput, timeInputValue, type Units } from "@/lib/f
 import {
   ARRIVE_RADIUS_M,
   computeDelta,
+  fixIsFresh,
   hasArrived,
   headingToDest,
   remainingM,
+  routeScale,
   type GpsFix,
   type Session,
+  type WalkMetrics,
 } from "@/lib/pace";
+import { useCompass } from "@/hooks/use-compass";
 import { useGeolocation } from "@/hooks/use-geolocation";
 import { useNow } from "@/hooks/use-now";
 import { useWakeLock } from "@/hooks/use-wake-lock";
@@ -74,17 +78,21 @@ export function usePaceApp() {
   const [gpsWanted, setGpsWanted] = useState(true);
   const [planMeters, setPlanMeters] = useState<number | null>(null);
   const [planFromRoute, setPlanFromRoute] = useState(false);
-  const [routeRemaining, setRouteRemaining] = useState<number | null>(null);
+  const [routeFactor, setRouteFactor] = useState(1);
   const lockedRef = useRef(false);
   const etaTouched = useRef(false);
   const planToken = useRef(0);
   const frozenDelta = useRef<number | null>(null);
   const fixRef = useRef<GpsFix | null>(null);
+  const headingHold = useRef<number | null>(null);
+  const headingTrusted = useRef(false);
+  const originLocked = useRef(false);
 
   const watchingLive = gpsWanted && (phase === "setup" || Boolean(session && !session.demo));
   const geo = useGeolocation(watchingLive);
-  const now = useNow(1000, phase !== "setup");
-  useWakeLock(phase === "walk");
+  const compass = useCompass(phase === "walk" || phase === "arrived");
+  const now = useNow(phase === "setup" ? 5000 : 1000);
+  useWakeLock(phase === "walk" || phase === "arrived");
 
   useEffect(() => {
     setUnitsState(loadUnits());
@@ -98,22 +106,40 @@ export function usePaceApp() {
 
   const origin: LatLon | null = geo.fix;
 
-  const chooseDestination = useCallback((place: Place, from: LatLon | null = origin) => {
-    setDestination(place);
-    etaTouched.current = false;
+  const applyPlan = useCallback((place: Place, from: LatLon | null, setTime: boolean) => {
     const crow = from ? haversineM(from, place) : 1200;
     setPlanFromRoute(false);
     setPlanMeters(crow);
-    setArriveBy(roundUpToMinute(Date.now() + walkEstimateMs(Math.max(crow, 80))));
+    if (setTime) {
+      setArriveBy(roundUpToMinute(Date.now() + walkEstimateMs(Math.max(crow, 80))));
+    }
     if (!from) return;
     const token = ++planToken.current;
     void walkDistanceM(from, place).then((meters) => {
-      if (meters == null || token !== planToken.current || etaTouched.current) return;
+      if (meters == null || token !== planToken.current) return;
       setPlanFromRoute(true);
       setPlanMeters(meters);
-      setArriveBy(roundUpToMinute(Date.now() + walkEstimateMs(Math.max(meters, 80))));
+      if (setTime && !etaTouched.current) {
+        setArriveBy(roundUpToMinute(Date.now() + walkEstimateMs(Math.max(meters, 80))));
+      }
     });
-  }, [origin]);
+  }, []);
+
+  const chooseDestination = useCallback(
+    (place: Place, from: LatLon | null = origin) => {
+      setDestination(place);
+      etaTouched.current = false;
+      if (from) originLocked.current = true;
+      applyPlan(place, from, true);
+    },
+    [applyPlan, origin],
+  );
+
+  useEffect(() => {
+    if (originLocked.current || phase !== "setup" || !destination || !geo.fix) return;
+    originLocked.current = true;
+    applyPlan(destination, geo.fix, !etaTouched.current);
+  }, [applyPlan, destination, geo.fix, phase]);
 
   const bumpArriveBy = useCallback((deltaMin: number) => {
     etaTouched.current = true;
@@ -131,7 +157,14 @@ export function usePaceApp() {
   }, []);
 
   const beginSession = useCallback(
-    (opts: { dest: Place; start: LatLon; arriveBy: number; demo: boolean; startDistanceM?: number; routed?: boolean }) => {
+    (opts: {
+      dest: Place;
+      start: LatLon;
+      arriveBy: number;
+      demo: boolean;
+      startDistanceM?: number;
+      routed?: boolean;
+    }) => {
       const crow = haversineM(opts.start, opts.dest);
       const startDistanceM = Math.max(opts.startDistanceM ?? crow, 30);
       const sess: Session = {
@@ -145,7 +178,9 @@ export function usePaceApp() {
       };
       lockedRef.current = false;
       frozenDelta.current = null;
-      setRouteRemaining(opts.routed ? startDistanceM : null);
+      headingHold.current = null;
+      headingTrusted.current = false;
+      setRouteFactor(opts.routed ? (routeScale(startDistanceM, crow) ?? 1) : 1);
       setSession(sess);
       setDestination(opts.dest);
       setArriveBy(sess.arriveBy);
@@ -153,7 +188,8 @@ export function usePaceApp() {
       setRecent(loadRecent());
       if (opts.demo) {
         setDemoFix({
-          ...opts.start,
+          lat: opts.start.lat,
+          lon: opts.start.lon,
           speedMps: 1.72,
           accuracyM: 5,
           timestamp: Date.now(),
@@ -169,27 +205,28 @@ export function usePaceApp() {
   );
 
   const startWalking = useCallback(() => {
-    if (!destination || !arriveBy) return;
-    const start = geo.fix;
-    if (!start) return;
-    const fallback = planMeters ?? haversineM(start, destination);
+    void compass.request();
+    if (!destination || !arriveBy || !geo.fix) return;
+    if (geo.status !== "live" || !fixIsFresh(geo.fix.timestamp, Date.now())) return;
+    const fallback = planMeters ?? haversineM(geo.fix, destination);
     beginSession({
       dest: destination,
-      start,
+      start: geo.fix,
       arriveBy,
       demo: false,
       startDistanceM: fallback,
       routed: planFromRoute,
     });
-  }, [arriveBy, beginSession, destination, geo.fix, planFromRoute, planMeters]);
+  }, [arriveBy, beginSession, compass, destination, geo.fix, geo.status, planFromRoute, planMeters]);
 
   const startDemo = useCallback(() => {
+    void compass.request();
     const dest = destination ?? DEMO_DEST;
     const start = demoStartFrom(dest);
     const dist = haversineM(start, dest);
     const arrive = Date.now() + walkEstimateMs(dist, 0.85);
     beginSession({ dest, start, arriveBy: arrive, demo: true });
-  }, [beginSession, destination]);
+  }, [beginSession, compass, destination]);
 
   useEffect(() => {
     if (phase !== "walk" || !session?.demo) return;
@@ -199,7 +236,13 @@ export function usePaceApp() {
         if (!prev) return prev;
         const remaining = haversineM(prev, dest);
         if (remaining <= ARRIVE_RADIUS_M) {
-          return { ...prev, ...dest, speedMps: 0, timestamp: Date.now() };
+          return {
+            lat: dest.lat,
+            lon: dest.lon,
+            speedMps: 0,
+            accuracyM: prev.accuracyM,
+            timestamp: Date.now(),
+          };
         }
         const t = Date.now() / 1000;
         const speed = 1.72 + Math.sin(t / 3.2) * 0.18;
@@ -226,7 +269,11 @@ export function usePaceApp() {
       const fix = fixRef.current;
       if (!fix) return;
       const meters = await walkDistanceM(fix, session.dest);
-      if (!stop && meters != null) setRouteRemaining(meters);
+      if (stop || meters == null) return;
+      const factor = routeScale(meters, haversineM(fix, session.dest));
+      if (factor != null) {
+        setRouteFactor((prev) => (Math.abs(prev - factor) < 0.02 ? prev : factor));
+      }
     };
     void pull();
     const id = window.setInterval(pull, 12_000);
@@ -236,38 +283,57 @@ export function usePaceApp() {
     };
   }, [phase, session]);
 
-  const metrics = useMemo(() => {
+  const metrics: WalkMetrics | null = useMemo(() => {
     if (!session || !liveFix) return null;
     const crow = remainingM(liveFix, session.dest);
-    const remaining = session.routed ? (routeRemaining ?? crow) : crow;
-    const heading = headingToDest(liveFix, session.dest);
-    const arrived = hasArrived(crow);
+    if (crow >= 40) headingTrusted.current = true;
+    const factor = session.routed ? routeFactor : 1;
+    const remaining = crow * factor;
+    const heading = headingToDest(
+      liveFix,
+      session.dest,
+      headingHold.current,
+      headingTrusted.current,
+    );
+    headingHold.current = heading.deg;
+    const arrived = hasArrived(crow, liveFix.accuracyM);
     const liveDelta = computeDelta(session, arrived ? 0 : remaining, now);
-    if (arrived && frozenDelta.current == null) frozenDelta.current = liveDelta;
     return {
       remaining: arrived ? 0 : remaining,
       heading,
       deltaSec: arrived ? (frozenDelta.current ?? liveDelta) : liveDelta,
       arrived,
-      speedMps: liveFix.speedMps ?? 0,
+      speedMps: liveFix.speedMps,
+      gpsStale: !session.demo && !fixIsFresh(liveFix.timestamp, now, 12_000),
     };
-  }, [liveFix, now, routeRemaining, session]);
+  }, [liveFix, now, routeFactor, session]);
 
   useEffect(() => {
     if (phase !== "walk" || !metrics?.arrived || lockedRef.current) return;
     lockedRef.current = true;
+    frozenDelta.current = metrics.deltaSec;
     setPhase("arrived");
-  }, [metrics?.arrived, phase]);
+  }, [metrics?.arrived, metrics?.deltaSec, phase]);
 
   const endSession = useCallback(() => {
     setPhase("setup");
     setSession(null);
     setDemoFix(null);
     setGpsWanted(true);
-    setRouteRemaining(null);
+    setRouteFactor(1);
     frozenDelta.current = null;
+    headingHold.current = null;
+    headingTrusted.current = false;
     lockedRef.current = false;
   }, []);
+
+  const canStart = Boolean(
+    destination &&
+      arriveBy &&
+      geo.status === "live" &&
+      geo.fix &&
+      fixIsFresh(geo.fix.timestamp, now),
+  );
 
   return {
     phase,
@@ -285,9 +351,12 @@ export function usePaceApp() {
     planMeters,
     session,
     metrics,
+    compassHeading: compass.deviceHeading,
+    compassPrompt: compass.prompt,
+    requestCompass: compass.request,
     startWalking,
     startDemo,
     endSession,
-    canStart: Boolean(destination && arriveBy && geo.fix),
+    canStart,
   };
 }

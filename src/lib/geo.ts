@@ -56,7 +56,65 @@ export function moveTowards(from: LatLon, to: LatLon, distM: number): LatLon {
 
 export function cardinal(deg: number): string {
   const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
-  return dirs[Math.round(deg / 45) % 8] ?? "N";
+  return dirs[Math.round(((deg % 360) + 360) % 360 / 45) % 8] ?? "N";
+}
+
+/**
+ * Ease a compass bearing. `hold` keeps the last good aim when the fix is too
+ * close for a stable direction (GPS noise spins the needle at the door).
+ */
+export function smoothBearing(prev: number | null, next: number, hold = false): number {
+  if (!Number.isFinite(next)) return prev ?? 0;
+  const norm = ((next % 360) + 360) % 360;
+  if (prev == null || !Number.isFinite(prev)) return norm;
+  if (hold) return prev;
+  const delta = ((norm - prev + 540) % 360) - 180;
+  if (Math.abs(delta) < 3) return prev;
+  return (prev + delta * 0.45 + 360) % 360;
+}
+
+/** Meters / second between two fixes. 0 is stationary; null is an unusable sample. */
+export function speedFromTrack(
+  prev: LatLon & { timestamp: number; accuracyM?: number | null },
+  next: LatLon & { timestamp: number; accuracyM?: number | null },
+): number | null {
+  const dt = (next.timestamp - prev.timestamp) / 1000;
+  if (!Number.isFinite(dt) || dt < 0.4 || dt > 20) return null;
+  const dist = haversineM(prev, next);
+  if (!Number.isFinite(dist)) return null;
+  const speed = dist / dt;
+  if (speed > 8) return null;
+  if (dist < 0.8 || speed < 0.2) return 0;
+  const noise = Math.max(prev.accuracyM ?? 12, next.accuracyM ?? 12, 8);
+  // A fast jump that never leaves the accuracy bubble is GPS noise, not a sprint.
+  // Walking pace stays under this cutoff, so a 1 Hz step is not zeroed.
+  if (dist < Math.min(noise * 0.45, 12) && speed > 4.5) return 0;
+  return speed;
+}
+
+/**
+ * Prefer the platform speed when it exists. iPhone Safari often reports null,
+ * and sometimes sticks at 0 while the fix is clearly moving.
+ */
+export function resolveSpeed(args: {
+  reported: number | null;
+  derived: number | null;
+  previous: number | null;
+}): number | null {
+  const reported =
+    args.reported != null && args.reported >= 0 && args.reported <= 8 ? args.reported : null;
+  let next: number | null = null;
+  if (reported != null && args.derived != null && reported < 0.3 && args.derived >= 0.7) {
+    next = args.derived;
+  } else if (reported != null) {
+    next = reported;
+  } else {
+    next = args.derived;
+  }
+  if (next == null) return args.previous;
+  if (args.previous == null) return next < 0.15 ? 0 : next;
+  const blended = next === 0 ? args.previous * 0.4 : args.previous * 0.55 + next * 0.45;
+  return blended < 0.15 ? 0 : blended;
 }
 
 /** Seconds ahead of schedule (positive = early, negative = late). */
@@ -71,10 +129,10 @@ export function scheduleDeltaSec(args: {
   if (budgetMs <= 0 || args.startDistanceM <= 0) return 0;
   const requiredMps = args.startDistanceM / (budgetMs / 1000);
   if (requiredMps <= 0) return 0;
-  const elapsedSec = Math.max(0, (args.now - args.startAt) / 1000);
-  const expectedCovered = requiredMps * elapsedSec;
-  const actualCovered = Math.max(0, args.startDistanceM - args.remainingM);
-  return (actualCovered - expectedCovered) / requiredMps;
+  const now = Math.max(args.now, args.startAt);
+  const timeLeftSec = (args.arriveBy - now) / 1000;
+  const remaining = Math.max(0, args.remainingM);
+  return timeLeftSec - remaining / requiredMps;
 }
 
 export function walkEstimateMs(distanceM: number, paceMps = 1.34) {
